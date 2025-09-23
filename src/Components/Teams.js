@@ -8,8 +8,8 @@ import axios from "axios";
 
 function Teams() {
 
-   const api="https://backend-fj48.onrender.com";
-  // const api="http://localhost:3001";
+  //  const api="https://backend-fj48.onrender.com";
+   const api="http://localhost:3001";
 
 
   const [selectedCity, setSelectedCity] = useState("");
@@ -20,6 +20,7 @@ function Teams() {
   const[members,setMembers]=useState([]);
   const[username,setUsername]=useState('');
   const [errors, setErrors] = useState({ fields: ""});
+  const[tasks,setTasks]=useState([]);
   const[selectedMembers, setSelectedMembers] = useState([]);
   const [newTeam, setNewTeam] = useState({
     teamName: "",
@@ -63,7 +64,7 @@ function Teams() {
       params:{city}
      })
      console.log(response.data);
-     if(response.data) setTeams([...teams, ...response.data]);
+     if(response.data) setTeams(response.data);
      if(res.status===200)
      {
         console.log(res.data);
@@ -114,10 +115,12 @@ function Teams() {
                 {
                     console.log(res.data);
 
-                    const formatted = res.data.map(m => ({
-                    value: m,
-                    label: m,
-                  }));
+                     const formatted = res.data.map(m => ({
+                      value: m.fullname,           // or `${m.fullname}-${m.role}` if you need uniqueness
+                      label: `${m.fullname} (${m.role==="Member"?"Annotator":m.role})`, // show both in dropdown
+                      role: m.role                 // keep role separately if you need later
+                    }));
+
                   console.log(formatted);
                   
                   setMembers(formatted);
@@ -156,6 +159,19 @@ function Teams() {
     const walk = (x - startX.current) * 1.5; // scroll speed multiplier
     scrollRefs.current[station].scrollLeft = scrollLeft.current - walk;
   }
+
+  
+const fetchtasks=async(team)=>{
+         console.log(team);
+         const res=await axios.post(`${api}/app/getTasks`, {
+                  leadName: team.leadName,
+                  teamName: team.teamName,
+                  station: team.station,
+                  city: team.city,
+                });;
+         setTasks(res.data);
+         navigate("/leadspace",{state:{team:team,tasks:res.data}});
+      }
   return (
     <div className="min-h-screen bg-gray-50 px-6 py-8">
       {/* Back Button */}
@@ -204,7 +220,7 @@ function Teams() {
         >
           <option value="">Select city...</option>
           {cities.map((city, idx) => (
-            <option key={idx} value={city} onSelect={()=>handleTeams(city)}>
+            <option key={idx} value={city}>
               {city}
             </option>
           ))}
@@ -351,7 +367,7 @@ function Teams() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.3 }}
                     className="min-w-[700px] bg-white rounded-2xl shadow p-6 border border-gray-200"
-                    onDoubleClick={() => navigate("/leadspace",{state:{team:team}})}
+                    onDoubleClick={()=>fetchtasks(team)}
                   >
                     {/* Team Card Content */}
                     <div className="flex justify-between items-center">

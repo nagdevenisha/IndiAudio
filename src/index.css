@@ -8,12 +8,28 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+   user-select: none; /* Standard */
+  -webkit-user-select: none; /* Safari */
+  -ms-user-select: none; /* IE 10+ */
 }
 
 code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
 }
-::-webkit-scrollbar {
-  display: none;
+
+@keyframes slide-in {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
 }
+
+.animate-slide-in {
+  animation: slide-in 0.3s ease-out;
+}
+

@@ -16,8 +16,8 @@ const [username, setUsername] = useState("");
   const [errors, setErrors] = useState({ username: "", password: "", confirm: "" , role: "",fullname:""});
    
   const navigate=useNavigate();
-  const api="https://backend-fj48.onrender.com";
-  // const api="http://localhost:3001";
+  // const api="https://backend-fj48.onrender.com";
+  const api="http://localhost:3001";
 
   const validateForm = (e) => {
     e.preventDefault();
@@ -66,14 +66,26 @@ const [username, setUsername] = useState("");
                 if(res.status===200)
                 {
                     alert("Registration Successful ✅");
-                    navigate('/login');
+                    //  navigate('/login');
                     
                 }
       }
       saveToDb();
     }
   };
-
+  const fechRecords=async()=>{
+     try{
+         const res=await axios.get(`${api}/app/findUsers`);
+         if(res.data)
+         {
+           navigate('/userActivity',{state:{data:res.data}})
+         }
+     }
+     catch(err)
+     {
+      console.log(err);
+     }
+  }
 
   return (
     <div className="relative flex items-center justify-center min-h-screen bg-gradient-to-br from-purple-100 via-white to-purple-200 overflow-hidden">
@@ -92,7 +104,7 @@ const [username, setUsername] = useState("");
 
         <div className="mb-4">
           <label className="block text-gray-600 text-sm font-medium mb-1">
-           Full NAME (First Name Last Name)
+           Full Name (First Name Last Name)
           </label>
           <div className="flex items-center border rounded-lg px-3 py-2 shadow-sm focus-within:ring-2 focus-within:ring-purple-400">
             <User className="w-5 h-5 text-gray-400 mr-2" />
@@ -177,7 +189,8 @@ const [username, setUsername] = useState("");
             <option value="" disabled>Select your role</option>
             <option>Admin</option>
             <option>Team Lead</option>
-            <option>Member</option>
+            <option value="Member">Annotator</option>
+            <option>QA</option>
           </select>
            {errors.role && (
             <p className="text-red-500 text-sm mt-1">{errors.role}</p>
@@ -191,20 +204,21 @@ const [username, setUsername] = useState("");
         </button>
 
         {/* Links */}
-        <p className="text-sm text-gray-600 mt-4 text-center">
+        {/* <p className="text-sm text-gray-600 mt-4 text-center">
           Already have an account?{" "}
           <a href="/login" className="text-purple-600 hover:underline">
             Login here
           </a>
-        </p>
+        </p> */}
 
         <div className="mt-4 flex justify-center">
-          <a
-            href="/"
-            className="bg-white border border-gray-300 px-5 py-2 rounded-lg shadow hover:bg-gray-100 transition"
-          >
-            Back to Home
-          </a>
+         <button
+          type="button"
+          className="bg-white border border-gray-300 px-5 py-2 rounded-lg shadow hover:bg-gray-100 transition"
+          onClick={fechRecords}
+        >
+          Back to Home
+        </button>
         </div>
       </form>
     </div>

@@ -10,8 +10,8 @@ import { Link } from "react-router-dom";
 export default function Login() {
 
 
-    const api="https://backend-fj48.onrender.com";
-  // const api="http://localhost:3001";
+    // const api="https://backend-fj48.onrender.com";
+  const api="http://localhost:3001";
 
     const[username,setUsername]=useState('');
     const[password,setPassword]=useState('');
@@ -34,14 +34,31 @@ export default function Login() {
         {
            localStorage.setItem("token", res.data.token);
             const decoded = jwtDecode(res.data.token);
+            console.log(decoded.role);
            alert("✅ Login Successful");
-           if (decoded.role === "admin") {
+           if (decoded.role === "Admin") {
           navigate("/dashboard");
         } else if (decoded.role === "Team Lead") {
           localStorage.setItem("data",username);
           navigate("/teams");
-        } else {
-          navigate("/taskbar");
+        } else if (decoded.role === "Member") { 
+          try{
+               const getdata=async()=>{
+                  const res=await axios.get(`${api}/app/alltasks`);
+                  const response=await axios.get(`${api}/app/getAnotTask`);
+                  console.log(res.data);
+                  console.log("task",response.data)
+                  if(res.data && response.data)
+                  {    
+                      navigate("/taskbar",{state:{data:res.data,task:response.data}});
+                  }
+               }
+               getdata();
+          }
+          catch(err)
+          {
+             console.log(err)
+          }
         }
 
       }
@@ -151,9 +168,9 @@ export default function Login() {
 
         {/* Links */}
         <div className="mt-6 flex justify-between text-sm text-gray-600">
-          <Link to="/register" className="hover:text-purple-600 font-medium">
+          {/* <Link to="/register" className="hover:text-purple-600 font-medium">
             Create Your Studio Account
-          </Link>
+          </Link> */}
           <a href="/" className="hover:text-purple-600">
             Back to Home
           </a>

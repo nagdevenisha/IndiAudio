@@ -4,24 +4,21 @@ import { jwtDecode } from "jwt-decode";
 function ProtectedRoute({ children, roles }) {
   const token = localStorage.getItem("token");
 
+  // Redirect to login if no token
   if (!token) return <Navigate to="/login" />;
 
   try {
     const decoded = jwtDecode(token);
 
-    // check expiry
-    if (decoded.exp * 1000 < Date.now()) {
-      localStorage.removeItem("token");
-      return <Navigate to="/login" />;
-    }
-
-    // check role
+    // Optional role check
     if (roles && !roles.includes(decoded.role)) {
       return <Navigate to="/unauthorized" />;
     }
 
-    return children; // ✅ authorized
+    // Authorized
+    return children;
   } catch (err) {
+    // If token is invalid, remove it and redirect to login
     localStorage.removeItem("token");
     return <Navigate to="/login" />;
   }
