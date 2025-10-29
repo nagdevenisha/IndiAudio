@@ -61,7 +61,7 @@ const stats = [
 const Home = () => {
    
   const navigate=useNavigate();
-  const MotionLink = motion(Link);
+  // const MotionLink = motion(Link);
 
 
   return (
@@ -69,16 +69,31 @@ const Home = () => {
     <div>
     <div className="relative min-h-screen bg-cover bg-center text-center px-6" style={{ backgroundImage: "url('/images/image.png')" }}>
       
-      <nav className="w-full absolute top-0 left-0 px-6 py-4 flex justify-end items-center bg-white/30 backdrop-blur-md z-20">
-  <ul className="flex gap-6 text-gray-800 font-medium">
-    <li><a href="#features" className="hover:text-purple-600 transition">Features</a></li>
-    <li><a href="#about" className="hover:text-purple-600 transition">About Us</a></li>
-    <li><Link to="/login" className="hover:text-purple-600 transition">Start Now</Link></li>
-  </ul>
-</nav>
-
-
-
+     <nav className="w-full absolute top-0 left-0 px-6 py-4 flex justify-between items-center bg-white/30 backdrop-blur-md shadow-md z-20">
+        {/* Logo */}
+       <img src="/images/logo1.png" alt="Logo" className="h-16 md:h-16" />
+        {/* Nav Links */}
+        <ul className="flex gap-6 text-gray-800 font-medium">
+          <li>
+            <a href="#features" className="hover:text-purple-700 transition">
+              Features
+            </a>
+          </li>
+          <li>
+            <a href="#about" className="hover:text-purple-700 transition">
+              About Us
+            </a>
+          </li>
+          <li>
+            <Link
+              to="/login"
+              className="bg-purple-700 text-white px-4 py-2 rounded-lg hover:bg-purple-800 transition"
+            >
+              Start Now
+            </Link>
+          </li>
+        </ul>
+      </nav>
       {/* Optional background overlay */}
       <div className="absolute inset-0 bg-white/20 backdrop-blur-sm z-0" />
 

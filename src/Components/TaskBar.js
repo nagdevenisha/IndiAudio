@@ -10,20 +10,26 @@ import {
   X,
   FileText,
   Download,
+  LogOut
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
+import Navbar from '../Authentication/Navbar.js';
+
 
 function TaskBar() {
-  // const api="https://backend-fj48.onrender.com";
-  const api = "http://localhost:3001";
+  // const api="https://backend-urlk.onrender.com";
+  // const api = "http://localhost:3001/taskbar";
+  const api=process.env.REACT_APP_API+"/taskbar";
 
   const [searchTerm, setSearchTerm] = useState("");
   const [openModal, setopenModal] = useState(false);
   const [tasks, setTasks] = useState([]);
   const [segment, setSegment] = useState([]);
-  const [downloadurl, setDownloadUrl] = useState("");
+
   const [annotator, setAnnotator] = useState([]);
+  const[name,setName]=useState("");
+
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -34,6 +40,7 @@ function TaskBar() {
       setTasks(location.state.data);
       setAnnotator(location.state.task);
       console.log(location.state.data);
+      setName(location.state.name);
     }
   }, [location.state]);
 
@@ -48,7 +55,6 @@ const filteredAllTasks = allTasks.filter((task) => {
   const createdDate = task.createdAt
     ? new Date(task.createdAt).toISOString().split("T")[0]
     : "";
-
   return (
     task.assignto?.toLowerCase().includes(search) ||
     task.givenTo?.toLowerCase().includes(search) ||
@@ -93,7 +99,7 @@ const filteredAllTasks = allTasks.filter((task) => {
   const handleDownload = async (file) => {
     try {
       const res = await axios.get(
-        `${api}/app/download?key=${encodeURIComponent(file)}`
+        `${api}/download?key=${encodeURIComponent(file)}`
       );
       const url = res.data.url;
       const link = document.createElement("a");
@@ -110,7 +116,7 @@ const filteredAllTasks = allTasks.filter((task) => {
   const handleAnnotator = async (task) => {
     try {
       console.log(task);
-      const res = await axios.get(`${api}/app/recLabel`, {
+      const res = await axios.get(`${api}/recLabel`, {
         params: {
           city: task.city,
           channel: task.station,
@@ -128,20 +134,17 @@ const filteredAllTasks = allTasks.filter((task) => {
   };
 
   return (
+  
+    <div>
+      <Navbar/>
     <div className="min-h-screen bg-white px-6 py-8">
       {/* Back Button */}
-      <button
-        onClick={() => window.history.back()}
-        className="flex items-center text-purple-600 font-medium hover:text-purple-800 transition mb-6"
-      >
-        <ChevronLeft className="mr-1 w-5 h-5" />
-        Back to Teams
-      </button>
-
       {/* Heading */}
-      <h1 className="text-3xl font-bold text-purple-700 mb-1">Member Tasks</h1>
+      <h1 className="text-3xl font-bold text-purple-700 mb-1">{tasks && annotator.length===0 ?"Quality":annotator?"Annotator":""} Tasks</h1>
       <p className="text-gray-600 mb-8">View and manage all assigned tasks</p>
-
+        <div className="flex justify-end mb-4 font-semibold text-xl">
+       <p>Welcome {name} 😎 !!</p>
+       </div>
       {/* Search Card */}
       <div className="bg-white rounded-2xl shadow-md border p-6">
         {/* Card Header */}
@@ -151,7 +154,6 @@ const filteredAllTasks = allTasks.filter((task) => {
             Search Tasks
           </h2>
         </div>
-
         {/* Search Input */}
         <div className="flex gap-4 mb-6">
           <div className="relative flex-1">
@@ -197,10 +199,10 @@ const filteredAllTasks = allTasks.filter((task) => {
             <div className="flex items-start gap-3">
               <div className="flex-1">
                 <h3 className="font-semibold text-lg">
-                  {task.type === "team" ? task.team.teamName : task.city}
+                  {task.type === "team" ? task.team.teamName : task.city.toUpperCase()}
                 </h3>
                 <p className="text-gray-500 text-sm mt-1">
-                  {task.type === "team" ? task.instructions : task.station}
+                  {task.type === "team" ? task.instructions : task.station.toUpperCase()}
                 </p>
               </div>
 
@@ -209,7 +211,7 @@ const filteredAllTasks = allTasks.filter((task) => {
                 <button
                   className="flex items-center gap-2 bg-purple-600 text-white px-3 py-1 rounded-md text-sm hover:bg-purple-700 transition"
                   onClick={() =>
-                    navigate("/workspace", { state: { audio: task.audioTasks, by: task.member?.name } })
+                    navigate("/workspace", { state: { audio: task.audioTasks, by: task.member?.name,id:task.id,task:task } })
                   }
                 >
                   <Play className="h-4 w-4" />
@@ -339,12 +341,13 @@ const filteredAllTasks = allTasks.filter((task) => {
             )}
             {segment.station && (
               <p>
-                <strong>Team:</strong> {segment.station}
+              <strong>Team:</strong> {segment.station.toUpperCase()}
+
               </p>
             )}
             <p>
               <strong>City:</strong>{" "}
-              {segment.team?.city ? segment.team?.city : segment.city}
+              {segment.team?.city ? segment.team?.city : segment.city.toUpperCase()}
             </p>
           </div>
         </div>
@@ -386,7 +389,7 @@ const filteredAllTasks = allTasks.filter((task) => {
     </div>
   </div>
 )}
-
+</div>
     </div>
   );
 }

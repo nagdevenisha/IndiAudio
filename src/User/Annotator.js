@@ -33,21 +33,21 @@ function Annotator() {
      const[dialog,setDialog]=useState(false);
      const [options, setOptions] = useState({});
      const[comments,setComments]=useState("");
+     const[check,setCheck]=useState(false);
+      const audioRef = useRef(null);
+      const[sector,setSector]=useState("");
+    const[labelType,setLabelType]=useState("");
 
-
-   const handleSubmit = (e) => {
-    e.preventDefault();
-    console.log("Form Data:", formData);
-    setModal(false);
-    
-  };
+  
 
    
 function generateItemId() {
   return `ITEM-${uuidv4()}`;
 }
-   //  const api="https://backend-fj48.onrender.com";
-   const api="http://localhost:3001";
+   //  const api="https://backend-urlk.onrender.com";
+  //  const api="http://localhost:3001/annotator";
+   const api=process.env.REACT_APP_API+"/annotator";
+   
      useEffect(()=>{
         console.log(location.state.anot)
         setData(location.state.anot);
@@ -170,22 +170,7 @@ const gaps = useMemo(() => {
      unlabeled: "border-black bg-black text-black italic"
     };
 
-   const handleTimeline=(start,end)=>{
-       if(end===start)
-       {
-         setError("*Select End Hour Greater than Start Hour");
-       }
-       else{
-              setError('');
-       }
-      try{
-                
-      }
-      catch(err)
-      {
-         console.log(err);
-      }
-   }
+
    useEffect(()=>{
          if(end<=start)
          {
@@ -201,6 +186,7 @@ const gaps = useMemo(() => {
 
 const handleClips=async(clips)=>{
        setIsOpen(true);
+       setLabelType("labeled");
        setLoading(true);
        setClip(clips);
        console.log(clips);
@@ -257,6 +243,7 @@ const handleUnlabel=async(start,end)=>{
                  const url = URL.createObjectURL(res.data);
                  setAudio(url);
                  setLoading(false);
+                 setLabelType("unlabeled");
             }
           setModal(true);
           setTime({start:secondsToHMS(start),end:secondsToHMS(end)});
@@ -273,8 +260,8 @@ const handleUnlabel=async(start,end)=>{
  }
 
  const fieldMap = {
-  Song: ["label","title", "artist", "album", "language","year"],
-  Ads: ["brand", "product", "category", "sector", "type"],
+  Song: ["title", "artist", "album","label","year","language"],
+  Ads: ["brand", "product", "sector", "category","type"],
   Program: ["title", "language", "episode", "season", "genre"],
   Sports: ["title","sportType" ,"language"],
   Error:["type"]
@@ -285,10 +272,23 @@ const getFieldType = (contentType, field) => {
 };
 
   useEffect(() => {
-    if (!contentType) return;
+  if (!contentType) return;
 
-    fieldMap[contentType]?.forEach((field) => {
-      const type = getFieldType(contentType, field);
+  fieldMap[contentType]?.forEach((field) => {
+    const type = getFieldType(contentType, field);
+    // If it's ads:category, use the sector-dependent endpoint
+    if (type === 'ads:category') {
+      axios.get(`${api}/suggest?type=ads:${sector}:category`)
+        .then(res => {
+          setOptions(prev => ({
+            ...prev,
+            [field]: res.data.map(item => ({ value: item, label: item }))
+          }));
+        })
+        .catch(err => console.error(err));
+    } 
+    // For all other types
+    else {
       axios.get(`${api}/suggest?type=${type}`)
         .then(res => {
           setOptions(prev => ({
@@ -297,10 +297,22 @@ const getFieldType = (contentType, field) => {
           }));
         })
         .catch(err => console.error(err));
-    });
-  }, [contentType]);
+    }
+  });
+}, [contentType, sector]);
+
 
   const handleType = async (field, selected) => {
+    if(field==="sector")
+    {     
+        setSector(`sector:${selected?.value}`);
+    }
+    if (field === "category" && sector) {
+      await axios.post(`${api}/addCategoryToSector`, {
+        sector,
+        category: selected?.value
+      });
+    }
     const value = selected ? selected.value : null;
 
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -323,7 +335,7 @@ const getFieldType = (contentType, field) => {
   const submitForm=async(id)=>{
       try{   
              console.log(time.start,time.end,id,contentType,formData);
-             const res=await axios.post(`${api}/app/form`,{id:id,start:time.start,end:time.end,content:contentType,form:formData,channel:data.station,city:data.city,date:data.audioDate,audio:data.audio})
+             const res=await axios.post(`${api}/form`,{id:id,start:time.start,end:time.end,content:contentType,form:formData,channel:data.station,city:data.city,date:data.audioDate,audio:data.audio,role:"annotator",comments,labelType:labelType});
               if(res)
               {
                  console.log(res.data);
@@ -345,6 +357,17 @@ const getFieldType = (contentType, field) => {
                   setTimeout(() => setToast(null), 3000);
                   setDialog(false);
                   setIsOpen(false);
+
+                  console.log(labelType,contentType);
+                  if(labelType==="unlabeled" && (contentType==="Song" || contentType==="Ads"))
+                  {
+                       console.log(labelType,contentType);
+                       const res=await axios.post(`${api}/unrecognized`,{start:time.start,end:time.end,content:contentType,form:formData,audio:data.audio,starts:data.starts});
+                  
+                       console.log(res.data);
+                      //  const url=await axios.get(`${api}/app/download`,{params:{key:res.data}});
+                      //  console.log(url.data);
+                  }
               }
       }
       catch(err)
@@ -372,6 +395,50 @@ const getFieldType = (contentType, field) => {
   setFormData(newFormData);
 
 }, [contentType]);
+
+
+const submitAll=async()=>{
+
+     try{
+            const res=await axios.get(`${api}/submitAnot`,{params:{id:data.id}});
+            if(res.status===200)
+            {
+               console.log(res.data);
+               setCheck(false);
+            }
+     }
+     catch(err)
+     {
+       console.log(err);
+     }
+}
+
+
+const formatTime = (date) => {
+  const h = String(date.getHours()).padStart(2, "0");
+  const m = String(date.getMinutes()).padStart(2, "0");
+  const s = String(date.getSeconds()).padStart(2, "0");
+  return `${h}:${m}:${s}`;
+};
+
+
+
+const handlePause = () => {
+  if (audioRef.current && time.start) {
+    const [h, m, s] = time.start.split(":").map(Number);
+    const startDate = new Date();
+    startDate.setHours(h, m, s, 0);
+
+    // use currentTime (where audio paused, in seconds)
+    const endDate = new Date(startDate.getTime() + audioRef.current.currentTime * 1000);
+
+    setTime((prev) => ({
+      ...prev,
+      end: formatTime(endDate),
+    }));
+  }
+};
+
 
     
   return (
@@ -433,10 +500,10 @@ const getFieldType = (contentType, field) => {
 
       {/* Button */}
       <div className="flex justify-end mt-6">
-        <button onClick={()=>handleTimeline(start,end)} className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-5 py-2 rounded-lg">
+        {/* <button onClick={()=>handleTimeline(start,end)} className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-5 py-2 rounded-lg">
           <Clock className="w-4 h-4" />
           Load Timeline
-        </button>
+        </button> */}
       </div>
       {error && <p className='text-red-500'>{error}</p>}
     </div>
@@ -498,7 +565,8 @@ const getFieldType = (contentType, field) => {
     {/* Clips */}
    {positionedClips.map((clip, idx) => {
   const calculatedWidth = clip.width; // in %
-  const minWidthPercent = 0.5; // ~0.5% of track width minimum (adjust as needed)
+  const minWidthPixels = 50; // Minimum 50 pixels
+  const minWidthPercent = (minWidthPixels / timelineWidth) * 100;
 
   return (
     <div
@@ -575,8 +643,48 @@ const getFieldType = (contentType, field) => {
           <p className="text-sm text-gray-600">Programs</p>
         </div>
       </div>
+
+      <div className="flex justify-end mt-8">
+      <button className="bg-purple-500 text-white px-4 py-2 rounded hover:bg-purple-700" onClick={()=>setCheck(true)}>
+        Final Submit
+      </button>
     </div>
+    </div>
+
+    
 }
+  {
+    check && 
+    <div>
+          <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-50">
+      <div className="bg-white rounded-lg shadow-lg w-full max-w-md p-6 relative">
+        <button
+          onClick={()=>setCheck(false)}
+          className="absolute top-3 right-3 text-gray-500 hover:text-gray-700"
+        >
+          ✕
+        </button>
+        <p className="text-lg text-gray-500 mb-4">
+         Do you confirm that all annotations and metadata for this hour are correct and complete?
+        </p>
+        <div className="flex justify-end space-x-3">
+          <button
+            className="px-4 py-2 border rounded-md bg-green-500 hover:bg-green-700"
+            onClick={submitAll}
+          >
+            Yes
+          </button>
+          <button
+            onClick={()=>setCheck(false)}
+            className="px-4 py-2 bg-red-500 hover:bg-red-700 text-white rounded-md"
+          >
+            No
+          </button>
+        </div>
+      </div>
+    </div>
+      </div>
+  }
 
   {isOpen && (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -635,10 +743,14 @@ const getFieldType = (contentType, field) => {
         <div className="border rounded-lg mx-6 mb-6 p-4">
           <h3 className="font-semibold mb-2">Analysis Information</h3>
           <div className="grid grid-cols-2">
-            <p><strong>Detection Method:</strong>Autolabelled</p>
+            <p><strong>Detection Method:</strong><span className="bg-purple-600 text-white text-xs px-2 py-0.5 rounded-full">{clip.createdBy==="new"?"AUTOLABELED":clip.createdBy.toUpperCase()}</span></p>
             <p><strong>Clip ID:</strong>{clip.id} </p>
           </div>
         </div>
+
+        {(clip.comments!=="-")&&  <div className="border rounded-lg mx-6 mb-6 p-4">
+              <p><strong>Comments:</strong>{" "}{clip.comments.toUpperCase()}</p>
+          </div>}
      {/* {files &&   */}
        {loading?
         <div className="flex justify-center items-center">
@@ -654,7 +766,6 @@ const getFieldType = (contentType, field) => {
           </div>
       }
           {/* } */}
-
         {/* Footer Buttons */}
         <div className="flex justify-end gap-3 px-6 py-4 bg-gray-50">
           <button
@@ -693,7 +804,7 @@ const getFieldType = (contentType, field) => {
       {
         dialog?
         <div className="mb-4 grid grid-cols-2 gap-y-2 gap-x-4 text-sm">
-  <div>
+    <div>
     <label className="block text-gray-600 text-xs mb-1">Channel</label>
     <input
       type="text"
@@ -778,9 +889,12 @@ const getFieldType = (contentType, field) => {
                 </div>:
         <div className="mt-4 flex justify-center mb-4"> 
           <audio 
+             ref={audioRef}
             src={audio} 
             controls 
             className="w-full max-w-md"
+             onPause={handlePause}
+             onEnded={handlePause} 
           />
           </div>
       }
@@ -824,22 +938,22 @@ const getFieldType = (contentType, field) => {
               formatCreateLabel={(input) => `Add "${toTitleCase(input)}"`}
               className="text-sm"
               isClearable
-              maxMenuHeight={100}
+              maxMenuHeight={150}
             />
           ))}
 
-       </form>
+       </form> 
+       {contentType==="Ads" && <p className="text-green-500 mt-4">Note:Please select sector first</p>}
        {contentType==="Jingle" && <input type='text' placeholder='Description....' className='border rounded px-2 py-1 w-full mt-2 h-10' onChange={(e) => handleType("Jdesc", e.target)}></input>}
         {(contentType && dialog) && 
         <div>
-           <textarea type='text' placeholder='Add Comments' className='border rounded px-2 py-1 w-full mt-4'/> 
+           <textarea type='text' placeholder='Add Comments' className='border rounded px-2 py-1 w-full mt-4' onChange={(e)=>setComments(e.target.value)}/> 
            </div> 
            }
         {contentType && (
           <div className='flex justify-end'>
            <button
             type="submit"
-            onChange={(e)=>setComments(e.target.value)}
             className="bg-purple-500 text-white px-4 py-2 rounded hover:bg-purple-700 mt-2 col-span-full"
             onClick={()=>submitForm(dialog?clip.id:generateItemId())}
           >

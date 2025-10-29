@@ -16,8 +16,9 @@ const [username, setUsername] = useState("");
   const [errors, setErrors] = useState({ username: "", password: "", confirm: "" , role: "",fullname:""});
    
   const navigate=useNavigate();
-  // const api="https://backend-fj48.onrender.com";
-  const api="http://localhost:3001";
+  // const api="https://backend-urlk.onrender.com";
+  // const api="http://localhost:3001/auth";
+  const api=process.env.REACT_APP_API;
 
   const validateForm = (e) => {
     e.preventDefault();
@@ -61,7 +62,7 @@ const [username, setUsername] = useState("");
                   role:role
                 }
                 console.log(data);
-                const res=await axios.post(`${api}/app/register`,data);
+                const res=await axios.post(`${api}/auth/register`,data);
                 console.log(res.status);
                 if(res.status===200)
                 {
@@ -75,7 +76,7 @@ const [username, setUsername] = useState("");
   };
   const fechRecords=async()=>{
      try{
-         const res=await axios.get(`${api}/app/findUsers`);
+         const res=await axios.get(`${api}/auth/findUsers`);
          if(res.data)
          {
            navigate('/userActivity',{state:{data:res.data}})

@@ -1,15 +1,18 @@
 import React from 'react';
-import { Upload, Play, Edit2, ArrowLeft,Crown,X, User,  Music,FileText ,Trash} from "lucide-react";
+import { Upload, Play, Edit2, ArrowLeft,Crown,X, User,  Music,FileText ,Trash,Trash2} from "lucide-react";
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useEffect } from 'react';
 import axios from 'axios';
+import { io } from "socket.io-client";
+import Select from 'react-select';
 
 
 function LeadSpace() {
 
  //const api="https://backend-fj48.onrender.com";
-   const api="http://localhost:3001";
+  // const api="http://localhost:3001/leadspace";
+   const api=process.env.REACT_APP_API+"/leadspace";
 
 const [team,setTeam]=useState(null);
 const[instructions,setInstructions]=useState('');
@@ -23,6 +26,13 @@ const [openEdit, setOpenEdit] = useState(false);
 const [selectedTask, setSelectedTask] = useState(null);
 const [newFiles, setNewFiles] = useState([]);
 const[files,setFiles]=useState([]);
+const[date,setDate]=useState('');
+const [members,setMembers]=useState([]);
+const [selectedMembers, setSelectedMembers] = useState([]);
+const [showMembers, SetshowMembers] = useState(false);
+
+
+
 
 function timeAgo(dateString) {
   const now = new Date();
@@ -89,14 +99,16 @@ const handleFileChange = (e) => {
     files.forEach(file => formData.append("audio", file));
 
     // Append other metadata
-    formData.append("assignto", memberassign);
+    const name = memberassign.split('(')[0].trim();
+    formData.append("assignto", name);
     formData.append("instructions", instructions);
     formData.append("leadName", team.leadName);
     formData.append("teamName", team.teamName);
     formData.append("station", team.station);
     formData.append("city", team.city);
+    formData.append("date",date);
      console.log(formData);
-    const res = await axios.post(`${api}/app/tasks`, formData, {
+    const res = await axios.post(`${api}/tasks`, formData, {
       headers: { "Content-Type": "multipart/form-data" },
     });
 
@@ -117,6 +129,96 @@ const handleFileChange = (e) => {
   }
 };
 
+const handleDashboard=async()=>{
+
+         try{
+               const res=await axios.get(`${api}/city`);
+               const station=await axios.get(`${api}/totalStations`);
+               const count=res.data.length;
+               navigate("/dashboard",{state:{count:count,total:station.data}});
+          }
+           catch(err)
+        { 
+          console.log(err);
+        }
+}
+ const handleMembers=async()=>{
+           try{
+                const res= await axios.get(`${api}/getmembers`);
+                if(res.data)
+                {
+                    console.log(res.data);
+
+                     const formatted = res.data.map(m => ({
+                      value: m.fullname,           // or `${m.fullname}-${m.role}` if you need uniqueness
+                      label: `${m.fullname} (${m.role==="Member"?"Annotator":m.role})`, // show both in dropdown
+                      role: m.role  ,
+                      email:m.username               // keep role separately if you need later
+                    }));
+
+                  console.log(formatted);
+                  
+                  setMembers(formatted);
+                }
+           }
+           catch(err)
+           {
+              console.log(err);
+           }
+  }
+// Suppose this is your API call
+const handleAddMembers = async () => {
+
+  console.log(selectedMembers)
+  try {
+    const res = await axios.post(`${api}/addMembers`, {
+      id: team.id,
+      members: selectedMembers, // from react-select
+    });
+
+    if (res.status === 200) {
+      console.log(res.data); // API response
+
+      // Update team state with new members
+      setTeam((prevTeam) => ({
+        ...prevTeam, // keep existing team data
+        members: [
+          ...prevTeam.members,   // existing members
+          ...selectedMembers.map((m) => ({
+            name: m.value, // or m.value if coming from select
+            role: m.role || "Member",
+          })),
+        ],
+      }));
+
+      // Optionally clear selected members
+      setSelectedMembers([]);
+    }
+  } catch (err) {
+    console.error("Error adding members:", err);
+  }
+};
+
+const handleRemoveMember = async (memberId) => {
+  try {
+
+     console.log(memberId);
+    const res = await axios.delete(`${api}/removeMember`, {
+      data: { id: memberId }, 
+    });     
+    if (res.status === 200) {
+      console.log(res.data); // API response
+      setTeam((prevTeam) => ({
+        ...prevTeam,
+        members: prevTeam.members.filter((m) => m.id !== memberId),
+      }));
+    }
+  } catch (err) {
+    console.error("Error removing member:", err);
+  }
+};
+
+
 
   return (
     <div>
@@ -132,44 +234,124 @@ const handleFileChange = (e) => {
 
       {/* Header */}
      {team && <div className="bg-white shadow rounded-xl p-6 border">
-        <h2 className="text-xl font-semibold flex items-center gap-2 text-purple-700">
-          🎧 {team.station}{" "}{team.teamName}{/*Radio City Quality Team*/}
-        </h2>
-        <div className="grid grid-cols-4 gap-6 mt-4">
-          <div>
-            <p className="text-500 font-semibold mb-1">Team Lead</p>
-            <div className="flex items-center">
-                <Crown className="text-yellow-500 w-5 h-5 mr-2" />
-                <p className="text-700">{team.leadName}</p>
+  <h2 className="text-xl sm:text-2xl font-semibold flex items-center gap-2 text-purple-700">
+    🎧 {team.station} {team.teamName}
+  </h2>
+
+  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+    {/* Team Lead */}
+    <div>
+      <p className="text-black font-semibold mb-1">Team Lead</p>
+      <div className="flex items-center">
+        <Crown className="text-yellow-500 w-5 h-5 mr-2" />
+        <p className="text-gray-700">{team.leadName}</p>
+      </div>
+    </div>
+
+    {/* Total Members */}
+   <div>
+  <p className="text-black font-semibold mb-1">Total Members</p>
+  <p
+    className="font-semibold text-purple-700 text-xl cursor-pointer"
+    onClick={() => SetshowMembers(true)}
+  >
+    {team.members.length}
+  </p>
+
+  {showMembers && (
+    <div
+      className="absolute top-15 ml-2 w-64 bg-white shadow-lg rounded-lg border border-green-100 p-3 z-50"
+      onMouseLeave={() => SetshowMembers(false)}
+    >
+      <p className="font-semibold  mb-2">
+        Members ({team.members.length})
+      </p>
+      <ul className="space-y-1 max-h-60 overflow-y-auto overflow-x-hidden">
+        {team?.members?.map((member, idx) => (
+          <li
+            key={idx}
+            className="flex items-center justify-between space-x-2 text-gray-700 text-sm"
+          >
+            <div className="flex items-center space-x-2">
+              <span className="h-2 w-2 bg-black rounded-full"></span>
+              <span>{member.name}</span>
             </div>
-            </div>
-          <div>
-            <p className="text-500 font-semibold">Total Members</p>
-            <p className="font-semibold text-purple-700 text-xl">{team.members.length}</p>
-          </div>
-          <div>
-            <p className=" font-semibold">Performance Today</p>
-            <p>
-              <span className="bg-green-400 text-xs px-2 py-1 rounded-full">
-                       {team.completedtask }{" "}Completed
-                      </span>{" "}
-              |<span className="ml-2 bg-red-300 text-xs px-2 py-1 rounded-full">
-                        {team.pendingtask }{" "}Pending
-                      </span>
-            </p>
-          </div>
-           <div>
-            <p className="text-500 font-semibold">Workspace</p>
-            <button className=' bg-purple-500 rounded-full w-30 px-2 py-1 '  onClick={() => ((team.teamName==="Quality Team"?navigate("/workspace"):navigate('/labelling')))}>Start Work</button>
-          </div>
-        </div>
-      </div>}
+
+            {/* Trash button */}
+            <button
+              className="text-red-500 hover:text-red-700"
+              onClick={() => handleRemoveMember(member.id)}
+            >
+              <Trash2 size={16} />
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )}
+</div>
+
+    {/* Performance Today */}
+    {/* <div>
+      <p className="font-semibold mb-1">Performance Today</p>
+      <p className="flex flex-wrap gap-2">
+        <span className="bg-green-400 text-xs px-2 py-1 rounded-full">
+          {team.completedtask} Completed
+        </span>
+        <span className="bg-red-300 text-xs px-2 py-1 rounded-full">
+          {team.pendingtask} Pending
+        </span>
+      </p>
+    </div> */}
+     <div>
+      <p className="text-black font-semibold mb-1">Dashboard</p>
+      <button
+        className="bg-purple-500 rounded-full w-full sm:w-32 px-2 py-1 text-white"
+        onClick={handleDashboard}
+      >
+      Dashboard
+      </button>
+    </div>
+    {/* Workspace */}
+    {/* <div>
+      <p className="text-black font-semibold mb-1">Workspace</p>
+      <button
+        className="bg-purple-500 rounded-full w-full sm:w-32 px-2 py-1 text-white"
+        onClick={() => navigate("/workspace")}
+      >
+        Start Work
+      </button>
+    </div> */}
+   <div>
+  <p className="text-black font-semibold mb-1">Add Members</p>
+  
+  <div className="flex items-center gap-2">
+    <Select
+      isMulti
+      options={members}
+      value={selectedMembers}
+      onChange={setSelectedMembers} // react-select gives array directly
+      className="flex-1 basic-multi-select"
+      classNamePrefix="select"
+      placeholder="Select Members..."
+      onFocus={handleMembers}
+    />
+
+    <button className="bg-gray-400 hover:bg-gray-500 text-white px-4 py-2 rounded-md transition" onClick={handleAddMembers}>
+      Add
+    </button>
+  </div>
+</div>
+
+  </div>
+</div>
+}
       {/* Assign New Task */}
       <div className="bg-white shadow rounded-xl p-6 border">
         <h3 className="text-lg font-semibold text-purple-700 mb-4">
           ➤ Assign New Task
         </h3>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
            <input type='text'  value={team?.station || ""} className="border rounded-lg px-4 py-2 focus:ring-2 focus:ring-purple-500"></input>
           <select className="border rounded-lg px-4 py-2 focus:ring-2 focus:ring-purple-500" onChange={(e)=>setMember(e.target.value)}>
             <option >Assigned to ..</option>
@@ -184,6 +366,12 @@ const handleFileChange = (e) => {
             placeholder="Instructions..."
             className="border rounded-lg px-4 py-2 focus:ring-2 focus:ring-purple-500"
             onChange={(e)=>setInstructions(e.target.value)}
+            ></input>
+            <input
+            type="date"
+            placeholder="select date"
+            className="border rounded-lg px-4 py-2 focus:ring-2 focus:ring-purple-500"
+            onChange={(e)=>setDate(e.target.value)}
             ></input>
           <label className="flex items-center justify-center gap-2 border rounded-lg px-4 py-2 cursor-pointer hover:bg-purple-50">
             <Upload className="w-5 h-5 text-purple-600" />
@@ -210,9 +398,9 @@ const handleFileChange = (e) => {
             >
   
               <div className="flex items-center gap-3">
-                <Play className="w-12 h-12 text-purple-600" />
+                <Play className="w-6 h-6 text-purple-600" />
                 <div>
-                  <p className="font-semibold">{task.file}</p>
+                  {/* <p className="font-semibold">{task.file}</p> */}
                   <p className="text-sm text-gray-600">
                     Station: {task.station} • Total files:{task.file.length}
                   </p>
@@ -242,7 +430,7 @@ const handleFileChange = (e) => {
           <div
             className="fixed inset-0 bg-black/40 flex items-center justify-center z-50"
           >
-            <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 relative">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[50vh] p-6 relative overflow-y-auto">
 
               {/* Close Button */}
               <button
@@ -274,9 +462,9 @@ const handleFileChange = (e) => {
           <User className="w-4 h-4 text-purple-600" />
           <span className="font-medium">{selectedTask.assignedTo}</span>
         </div>
-        <div className="flex items-center gap-2 col-span-2">
+        <div className="flex  gap-2 col-span-2">
           <Music className="w-7 h-7 text-purple-600" />
-          <div className="flex flex-col">
+          <div className="flex flex-col overflow-y-auto">
             {selectedTask.file?.map((file, idx) => (
               <span key={idx} className="text-gray-600">{file}</span>
             ))}

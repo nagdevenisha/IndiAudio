@@ -1,5 +1,5 @@
 import React,{useEffect, useState,useRef} from 'react';
-import { ChevronLeft, Calendar, Clock, MapPin ,Radio,Upload,Loader2,X} from "lucide-react";
+import { ChevronLeft,MapPin ,Radio,Upload,Loader2,X} from "lucide-react";
 import Timeline from './Timeline';
 import axios from 'axios';
 import { motion, AnimatePresence } from "framer-motion";
@@ -21,27 +21,36 @@ export default function Workspace() {
     const[error,setError]=useState({recordError:"",fpError:"",labelError:""});
     const[load,setLoad]=useState(false);
     const[givenBy,setGivenby]=useState('');
-
+    const[task,setTask]=useState({});
     const [showForm, setShowForm] = useState(false);
     const[users,setUsers]=useState([]);
     const [assignee, setAssignee] = useState("");
     const [fromHour, setFromHour] = useState("");
     const [toHour, setToHour] = useState("");
-     const counterRef = useRef(100);
+    const counterRef = useRef(100);
+    const[check,setCheck]=useState(false);
+    const[id,setId]=useState('');
+    const [activeButton, setActiveButton] = useState('');
 
  
    const [modalOpen, setModalOpen] = useState(false);
 
   const location=useLocation();
-//  const api="https://backend-fj48.onrender.com";
-   const api="http://localhost:3001";
+//  const api="https://backend-urlk.onrender.com";
+  //  const api="http://localhost:3001/timeline";
+   const api=process.env.REACT_APP_API+"/timeline";
 
-  const handleFileChange = (e) => {
-      setFile(Array.from(e.target.files));
-  };
+ 
   
  useEffect(()=>{
      setGivenby(location.state.by);
+     setId(location.state.id);
+     setTask(location.state.task);
+     console.log(location.state.task);
+     setDate(location.state.task.audioDate);
+     const station=location.state.task.team.station.toLowerCase().replace(/\s+/g, '-');
+     setStation(station);
+     setCity(location.state.task.team.city);
  },[])
   const handleUploads = async (e) => {
 
@@ -83,33 +92,7 @@ export default function Workspace() {
       setLoading(false);
     }
   };
-  const handleUpload = async () => {
-     if(!city || !date || !station)
-    {
-       setError({labelError:"Please select date/city/station"});
-       return;
-    }
-    setError({labelError:""});
-    if (file.length===0) 
-    {
-      setError({fpError:"Please select files"});
-      return;
-    }
-    setError("");
-    setLoader({loader1:true});
-    const formData = new FormData();
-    file.forEach((files) => {
-     formData.append("masterFiles", files); // use same field name for array
-   });
-    formData.append("type", "master");
 
-    const res=await axios.post("http://localhost:3001/api/master/upload",formData, {
-      headers: { "Content-Type": "multipart/form-data" },
-    });
-    if(res.data) setLoader({loader1:false}); setFile([]);
-    console.log(res.data);
-    setCount(res.data.files.length);
-  };
    
   const intervals = [];
   for (let h = 0; h < 24; h++) {
@@ -124,7 +107,13 @@ export default function Workspace() {
             try{
                   //  const res=await axios.post("http://localhost:3001/audiomatching");
                   //  console.log(res.data);
-                  const res=await axios.get("http://localhost:3001/app/getlabel",{
+                  // if(file.length>=0)
+                  // {
+                  //    setError({recordError:"Please select files"});
+                  //    return;
+                  // }
+                  
+                  const res=await axios.get(`${api}/getlabel`,{
                     params:{
                       city:city,
                       station:station,
@@ -138,7 +127,7 @@ export default function Workspace() {
                         setLoad(true);
                         setModalOpen(true);
                   }
-                   const response=await axios.get(`${api}/app/getUsers`);
+                   const response=await axios.get(`${api}/getUsers`);
                    if(response)
                    {
                       console.log(response.data);
@@ -158,7 +147,7 @@ export default function Workspace() {
             setLoader({loader2:true});
             console.log(recordings);
 
-            const res=await axios.post('http://localhost:3001/app/minuteclip',{audio:recordings.record.filePath,city:city,date:date,station:station});
+            const res=await axios.post(`${api}/minuteclip`,{audio:recordings.record.filePath,city:city,date:date,station:station});
             console.log(res.data);
             if(res.status)
             {
@@ -191,7 +180,7 @@ function generateAnnotatorId() {
 
              }
              console.log(task);
-             const res=await axios.post(`${api}/app/annotator`,{task});
+             const res=await axios.post(`${api}/annotator`,{task});
              if(res)
              {
                 setModalOpen(false);
@@ -202,6 +191,36 @@ function generateAnnotatorId() {
          console.log(err);
        }
   }
+
+
+  const submitAll=async()=>{
+     try{
+           const res=await axios.get(`${api}/submitTask`,{params:{id:id}});
+           if(res.status===200)
+           {
+             console.log(res.data);
+             setCheck(false);
+           }
+     }
+     catch(err)
+     {
+       console.log(err);
+     }
+
+  }
+
+  const handleClick = async(buttonName) => {
+    setActiveButton(buttonName);
+    if(buttonName==="ads")
+    {
+         const res=await axios.get(`${api}/getSongfp`,{params:{name:"ads"}});
+    }
+    if(buttonName==="songs")
+    {
+        const res=await axios.get(`${api}/getSongfp`,{params:{name:"ads"}});
+    }
+  };
+
   return (
    <div className="min-h-screen bg-white px-6 py-8">
      <button
@@ -229,8 +248,8 @@ function generateAnnotatorId() {
 
 
     {/* Filters Section */}
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-      {/* Select City */}
+    {/* <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+    
       <div className="bg-white rounded-xl border shadow-sm p-6">
         <div className="flex items-center mb-4">
           <MapPin className="w-5 h-5 text-purple-600 mr-2" />
@@ -249,7 +268,7 @@ function generateAnnotatorId() {
         </select>
       </div>
 
-      {/* Select Date */}
+     
       <div className="bg-white rounded-xl border shadow-sm p-6">
         <div className="flex items-center mb-4">
           <Calendar className="w-5 h-5 text-purple-600 mr-2" />
@@ -263,10 +282,36 @@ function generateAnnotatorId() {
           className="w-full border border-gray-300 rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
           onChange={(e)=>setDate(e.target.value)}
         />
+      </div> */}
+    <div className="border rounded-lg p-6 shadow-sm bg-white w-full max-w-8xl">
+  {/* Header */}
+      <div className="flex items-center mb-6">
+        <MapPin className="w-5 h-5 text-purple-600 mr-2" />
+        <h2 className="text-lg font-semibold">Session Details</h2>
       </div>
 
-      {/* Select Radio Station */}
-      <div className="bg-white rounded-xl border shadow-sm p-6">
+  {/* Session Info Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-x-12 gap-y-4 items-center">
+          <div>
+            <p className="text-lg text-gray-500">City</p>
+            <p className="font-medium text-gray-800 text-lg" >{task?.team?.city}</p>
+          </div>
+
+          <div>
+            <p className="text-lg text-gray-500">Station</p>
+            <p className="font-medium text-gray-800 text-lg">{task?.team?.station}</p>
+          </div>
+
+          <div>
+            <p className="text-lg text-gray-500">Date</p>
+            <p className="font-medium text-gray-800 text-lg">{task?.audioDate}</p>
+          </div>
+
+        </div>
+
+
+     
+      {/* <div className="bg-white rounded-xl border shadow-sm p-6">
         <div className="flex items-center mb-4">
           <Clock className="w-5 h-5 text-purple-600 mr-2" />
           <h2 className="text-lg font-semibold">Select Radio Station</h2>
@@ -281,33 +326,50 @@ function generateAnnotatorId() {
           <option value="radio-mirchi">Radio Mirchi</option>
           <option value="radio-tadka">Radio Tadka</option>
         </select>
-      </div>
+      </div> */}
     </div>
 
     {/* Upload Section */}
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div className="grid grid-cols-1 md:grid-cols-1 gap-6 mt-8">
       {/* Master Fingerprints */}
-      <div className="bg-white rounded-xl border shadow-sm p-6">
-        <div className="flex items-center mb-4">
+      {/* <div className="bg-white rounded-xl border shadow-sm p-6"> */}
+        {/* <div className="flex items-center mb-4">
           <Radio className="w-5 h-5 text-purple-600 mr-2" />
           <h2 className="text-lg font-semibold">Master Fingerprints</h2>
-        </div>
+        </div> */}
         {error.fpError && <p className='text-red-500'>*{error.fpError}</p>}
-        <input
+        {/* <input
         type="file"
         multiple accept="audio/*"
         onChange={handleFileChange}
         className="mb-3"
-      />
-       {loader.loader1 &&  <div className="flex items-center justify-center py-10">
+      /> */}
+       {/* {loader.loader1 &&  <div className="flex items-center justify-center py-10">
             <Loader2 className="animate-spin text-blue-500 w-8 h-8" />
             <span className="ml-2 text-gray-600">Loading segment...</span>
-          </div>}
-        <button onClick={handleUpload} className="flex items-center justify-center w-full border border-gray-300 rounded-md p-3 hover:bg-gray-50 transition">
+          </div>} */}
+        {/* <button onClick={handleUpload} className="flex items-center justify-center w-full border border-gray-300 rounded-md p-3 hover:bg-gray-50 transition">
           <Upload className="w-4 h-4 mr-2" /> Add Master Fingerprint
-        </button>
-        <p className="text-sm text-gray-500 mt-2">{count}{" "}fingerprints uploaded</p>
-      </div>
+        </button> */}
+       {/* <div className="gap-12 mt-14 flex justify-center">
+      <button
+        className="w-64 px-8 h-[50px]  bg-purple-500 text-white rounded hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition"
+        onClick={() => handleClick("ads")}
+        disabled={activeButton === "songs"}
+      >
+        Add Advertisements
+      </button>
+
+      <button
+        className="w-64 px-8 h-[50px] bg-purple-500 text-white rounded hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition"
+        onClick={() => handleClick("songs")}
+        disabled={activeButton === "ads"}
+      >
+        Add Songs
+      </button>
+    </div> */}
+        {/* <p className="text-sm text-gray-500 mt-2">{count}{" "}fingerprints uploaded</p> */}
+      {/* </div> */}
 
       {/* Recordings */}
           <div className="bg-white rounded-xl border shadow-sm p-6">
@@ -315,7 +377,6 @@ function generateAnnotatorId() {
           <Upload className="w-5 h-5 text-purple-600 mr-2" />
           <h2 className="text-lg font-semibold">Recordings</h2>
         </div>
-        {error.recordError && <p className='text-red-500'>*{error.recordError}</p>}
         <input
          type="file"
           webkitdirectory="true"
@@ -331,8 +392,9 @@ function generateAnnotatorId() {
         <button onClick={handleUploads} className="flex items-center justify-center w-full border border-gray-300 rounded-md p-3 hover:bg-gray-50 transition">
           <Upload className="w-4 h-4 mr-2" /> Add Recording
         </button>
-        <p className="text-sm text-gray-500 mt-2">{recordings.length} recordings uploaded</p>
-        {recordings && <p className='font-semibold'>do you want to create 5 min clip? <span><button className='border border-gray-300 rounded-md p-3 hover:bg-gray-50 transition bg-green-200' onClick={handleclips}>Yes</button></span><button className='ml-4 border border-gray-300 rounded-md p-3 hover:bg-gray-50 transition bg-red-200'>No</button>{loader.loader2 && <Loader2 className="animate-spin text-blue-500 w-8 h-8" />}</p>}
+          {error.recordError && <p className='text-red-500'>*{error.recordError}</p>}
+        {/* <p className="text-sm text-gray-500 mt-2">{recordings.length} recordings uploaded</p> */}
+        {recordings && <p className='font-semibold'>do you want to create 5 min clip? <span><button className='border border-gray-300 rounded-md p-2 hover:bg-gray-50 transition bg-green-200 mt-2' onClick={handleclips}>Yes</button></span><button className='ml-4 border border-gray-300 rounded-md p-2 hover:bg-gray-50 transition bg-red-200'>No</button>{loader.loader2 && <Loader2 className="animate-spin text-blue-500 w-8 h-8" />}</p>}
       </div>
     </div>
     {error.labelError && <p className='text-red-500'>{error.labelError}</p>}
@@ -358,7 +420,7 @@ function generateAnnotatorId() {
           </div>
           <div className="bg-green-100 text-green-800 p-4 rounded-xl text-center">
             <p className="text-sm font-medium">Station</p>
-            <p className="text-xl font-bold">{station}, {city}</p>
+            <p className="text-xl font-bold">{station.toUpperCase()}, {city.toUpperCase()}</p>
           </div>
           <div className="bg-teal-100 text-teal-800 p-4 rounded-xl text-center">
             <p className="text-sm font-medium">Fingerprint Uploaded</p>
@@ -404,7 +466,7 @@ function generateAnnotatorId() {
 )}
     {/* <SegmentList/> */}
     <div className="flex justify-end">
-  <button className="px-8 py-2 bg-purple-500 text-white rounded mt-8">
+  <button className="px-8 py-2 bg-purple-500 text-white rounded mt-8" onClick={()=>setCheck(true)}>
     Submit Changes
   </button>
   </div>
@@ -513,7 +575,38 @@ function generateAnnotatorId() {
         </div>
       )}
     </AnimatePresence>
-
+{
+    check && 
+    <div>
+          <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-50">
+      <div className="bg-white rounded-lg shadow-lg w-full max-w-md p-6 relative">
+        <button
+          onClick={()=>setCheck(false)}
+          className="absolute top-3 right-3 text-gray-500 hover:text-gray-700"
+        >
+          ✕
+        </button>
+        <p className="text-lg text-gray-500 mb-4">
+         Do you confirm that all annotations and metadata for this hour are correct and complete?
+        </p>
+        <div className="flex justify-end space-x-3">
+          <button
+            className="px-4 py-2 border rounded-md bg-green-500 hover:bg-green-700"
+            onClick={submitAll}
+          >
+            Yes
+          </button>
+          <button
+            onClick={()=>setCheck(false)}
+            className="px-4 py-2 bg-red-500 hover:bg-red-700 text-white rounded-md"
+          >
+            No
+          </button>
+        </div>
+      </div>
+    </div>
+      </div>
+  }
 </div>
   )
 }

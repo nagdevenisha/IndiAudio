@@ -1,64 +1,86 @@
 import React, { useState } from "react";
 import { LogIn, User, Lock, Music, Waves, Headphones } from "lucide-react";
 import axios from "axios";
-import { data, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { jwtDecode } from "jwt-decode";
-import { Link } from "react-router-dom";
+import { io } from "socket.io-client";
 
 
 
 export default function Login() {
 
 
-    // const api="https://backend-fj48.onrender.com";
-  const api="http://localhost:3001";
+    // const api="https://backend-urlk.onrender.com";
+  // const api="http://localhost:3001/auth";
+  const api=process.env.REACT_APP_API;
 
     const[username,setUsername]=useState('');
     const[password,setPassword]=useState('');
     const[field,setField]=useState('');
     const[validate,setValidate]=useState('');
     const navigate=useNavigate();
+    
 
     const handleLogin=async()=>{
   
       if(username && password)
       {
       try {
-        const res = await axios.post(`${api}/app/login`, {
+        const resp = await axios.post(`${api}/auth/login`, {
           username,
           password
         }, {
-          headers: { "Content-Type": "application/json" }
+          headers: { "Content-Type": "application/json" },
         });
-        if(res.status===200)
-        {
-           localStorage.setItem("token", res.data.token);
-            const decoded = jwtDecode(res.data.token);
+        if(resp.status===200)
+        { 
+            console.log(resp.data);
+            localStorage.setItem("token", resp.data.token);
+            const decoded = jwtDecode(resp.data.token);
             console.log(decoded.role);
-           alert("✅ Login Successful");
+
+            
+            const socket = io(api, {
+            query: {
+            userId: username, // depends on your token
+            role: decoded.role,
+            name: resp.data.fullname,
+          },
+        });
+
+        // Optional: send heartbeat every 30s
+        setInterval(() => {
+          socket.emit("heartbeat", { userId: decoded.id });
+        }, 30000);
+
+        alert("✅ Login Successful");
            if (decoded.role === "Admin") {
-          navigate("/dashboard");
+            try{
+                 const res=await axios.get(`${api}/auth/city`);
+                  const station=await axios.get(`${api}/auth/totalStations`);
+                 const count=res.data.length;
+                 navigate("/dashboard",{state:{count:count,total:station.data}});
+            }
+            catch(err)
+            {
+                console.log(err);
+            }
         } else if (decoded.role === "Team Lead") {
           localStorage.setItem("data",username);
           navigate("/teams");
-        } else if (decoded.role === "Member") { 
-          try{
+        } else if (decoded.role === "Member"|| decoded.role === "QA" ) { 
+          
                const getdata=async()=>{
-                  const res=await axios.get(`${api}/app/alltasks`);
-                  const response=await axios.get(`${api}/app/getAnotTask`);
+                  const res=await axios.get(`${api}/auth/alltasks`,{params:{name:resp.data.fullname}});
+                  const response=await axios.get(`${api}/auth/getAnotTask`,{params:{name:resp.data.fullname}});
                   console.log(res.data);
                   console.log("task",response.data)
                   if(res.data && response.data)
                   {    
-                      navigate("/taskbar",{state:{data:res.data,task:response.data}});
+                      navigate("/taskbar",{state:{data:res.data,task:response.data,name: resp.data.fullname}});
                   }
                }
                getdata();
-          }
-          catch(err)
-          {
-             console.log(err)
-          }
         }
 
       }
@@ -117,9 +139,15 @@ export default function Login() {
       {/* Login Card */}
       <div className="relative z-10 w-full max-w-md bg-white shadow-xl rounded-2xl p-8 border border-purple-100">
         <div className="flex flex-col items-center mb-6">
-          <Headphones className="w-12 h-12 text-purple-600 mb-3" />
-          <h2 className="text-2xl font-bold text-gray-800">Audio Studio Login</h2>
-          <p className="text-gray-500 text-sm text-center">
+          {/* <Headphones className="w-12 h-12 text-purple-600 mb-3" /> */}
+            <img src="/images/logo1.png" alt="Logo" className="h-16 md:h-16 mb-3" />
+          <div className="flex items-center font-serif text-2xl md:text-3xl font-bold">
+          <span className="bg-purple-600/80 text-white px-2 md:px-3 rounded-sm tracking-wide">
+            INDI
+          </span>
+          <span className="text-purple-700 ml-2 tracking-wide">RADIO</span>
+        </div>
+          <p className="text-gray-500 text-sm text-center mt-2">
             Access your professional audio management dashboard
           </p>
         </div>

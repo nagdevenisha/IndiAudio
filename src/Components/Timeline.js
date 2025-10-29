@@ -1,45 +1,21 @@
 import React,{useState,useRef, useEffect} from "react";
-import { Info, Play, X, RefreshCcwDot} from "lucide-react";
-import EditModal from "./EditModal";
+import { Info, Play, X, RefreshCcwDot,Loader2} from "lucide-react";
+// import EditModal from "./EditModal";
 import axios from "axios";
-import UnlabelledData from "./UnlabelledData";
+// import UnlabelledData from "./UnlabelledData";
+import { io } from "socket.io-client";
+import Draggable from "react-draggable";
+import CreatableSelect from "react-select/creatable";
 
 
 export default function Timeline({audio,starts,data,date,city,station}) {
-const allGapsTemp = [];
-let allStartsGapLength="";
-const typeColors = {
-  jingle: "bg-yellow-300",
-  program: "bg-blue-300",
-  advertisement: "bg-red-300",
-  song: "bg-green-300",
-};
 
 
-useEffect(() => {
-    const handleSegmentSelected = () => {
-      const item = localStorage.getItem("selectedSegment");
-      if (item) {
-        setSelectedSegment(JSON.parse(item));
-        setIsModalOpen(true);
-      }
-    };
+   //  const api="https://backend-urlk.onrender.com";
+  //  const api="http://localhost:3001/timeline";
+  const api=process.env.REACT_APP_API+"/timeline";
 
-    // listen to custom event
-    window.addEventListener("segmentSelected", handleSegmentSelected);
 
-    return () => {
-      window.removeEventListener("segmentSelected", handleSegmentSelected);
-    };
-  }, []);
-
-  // Generate 15-min intervals
-  const intervals = [];
-  for (let h = 0; h < 24; h++) {
-    for (let m = 0; m < 60; m += 15) {
-      intervals.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
-    }
-  }
   const [selectedSegment, setSelectedSegment] = React.useState(null);
   const [isModalOpen, setIsModalOpen] = React.useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -53,27 +29,101 @@ useEffect(() => {
   const [records, setRecords] = useState(() => data || []);
   const [detail, setDetail] = useState([]);     
   const[error,setError]=useState('');
+  const[start,setStart]=useState();
+  const[end,setEnd]=useState();
+  const [contentType, setContentType] = useState("");
+  const [options, setOptions] = useState({});
+  const [formData, setFormData] = useState({});
+  const[loading,setLoading]=useState(false);
+  const[time,setTime]=useState({start:'',end:''});
+  const [toast, setToast] = useState(null);
+   const[sector,setSector]=useState("");
 
- const dataBlocks = records.map(seg => ({
-  ...seg, // keep all properties
-  label: seg.program.charAt(0) + "..." // short label for the bar
+  const allGapsTemp = [];
+  let allStartsGapLength="";
+
+    const socket = io(process.env.REACT_APP_API);
+    const nodeRef = useRef(null);
+
+  const fieldMap = {
+    Song: ["title", "artist", "album","label","year","language"],
+    Ads: ["brand", "product", "sector", "category","type"],
+    Program: ["title", "language", "episode", "season", "genre"],
+    Sports: ["title","sportType" ,"language"],
+    Error:["type"]
+  };
+  useEffect(() => {
+      const handleSegmentSelected = () => {
+        const item = localStorage.getItem("selectedSegment");
+        if (item) {
+          setSelectedSegment(JSON.parse(item));
+          setIsModalOpen(true);
+        }
+      };
+
+    // listen to custom event
+    window.addEventListener("segmentSelected", handleSegmentSelected);
+
+    return () => {
+      window.removeEventListener("segmentSelected", handleSegmentSelected);
+    };
+  }, []);
+
+
+  const startHour = start != null ? start : 0;
+  const endHour = end != null ? end : 24;
+  // Generate 15-min intervals
+ const filteredIntervals = [];
+  for (let h = startHour; h < endHour; h++) {
+    for (let m = 0; m < 60; m += 15) {
+      filteredIntervals.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
+    }
+  }
+
+  useEffect(() => {
+  // Listen for updates
+  socket.on("recordsUpdated", (updatedRecords) => {
+    
+    setRecords(updatedRecords); // replace entire state
+  });
+  return () => socket.off("recordsUpdated");
+}, [city, station, date]);
+
+
+
+const startSeconds = start != null ? start * 3600 : 0;
+const endSeconds = end != null ? end * 3600 : 24 * 3600;
+
+const timeToSeconds = (time) => {
+const [h, m, s = 0] = time.split(":").map(Number); // default s=0
+return h * 3600 + m * 60 + s;
+ };
+// Filter records to only include segments that overlap selected period
+const filteredRecords = records.filter((seg) => {
+  const segStart = timeToSeconds(seg.start);
+  const segEnd = timeToSeconds(seg.end);
+  return segEnd > startSeconds && segStart < endSeconds;
+});
+
+// Map filtered records to dataBlocks for timeline
+const dataBlocks = filteredRecords.map((seg) => ({
+  ...seg,
+  label: seg.program?.charAt(0) || "•",
 }));
 
 const handleBarClick = (segment) => {
   setSelectedSegment(segment);
   setIsModalOpen(true);
+  setTime({start:segment.start,end:segment.end});
 };
   
-    const timeToSeconds = (time) => {
-    const [h, m, s = 0] = time.split(":").map(Number); // default s=0
-  return h * 3600 + m * 60 + s;
-  };
 const handleAudio = async(start, end) => {
   console.log(audio);
   console.log(starts);
   console.log(start,end);
+  setLoading(true);
   try{
-    const response = await axios.get("http://localhost:3001/clips", {
+    const response = await axios.get(`${api}/clips`, {
       params: {
         filePath: audio,  // full path or relative name
         startTime: start,
@@ -88,6 +138,10 @@ const handleAudio = async(start, end) => {
     const audioUrl = URL.createObjectURL(audioBlob);
     setFiles(audioUrl); // <-- ensures <audio src={file} /> is visible
     setError('');
+    if(response)
+    {
+       setLoading(false);
+    }
 
     if (audioRef.current) {
       audioRef.current.onloadedmetadata = () => {
@@ -124,7 +178,7 @@ const handleGreyBlock = async (gap) => {
   console.log("Grey Clip:", startTime, "->", endTime);
 
   try {
-    const response = await axios.get("http://localhost:3001/clips", {
+    const response = await axios.get(`${api}/clips`, {
       params: {
         filePath: audio,
         startTime,
@@ -151,7 +205,7 @@ const handleGreyBlock = async (gap) => {
 const handleRecords=async()=>{
   try{
         console.log(data);
-        const res=await axios.get('http://localhost:3001/app/getlabel',{
+        const res=await axios.get(`${api}/getlabel`,{
           params:{
              city:city,
              date:date,
@@ -167,6 +221,135 @@ const handleRecords=async()=>{
      console.log(err);
   }
 }
+const getFieldType = (contentType, field) => {
+  return `${contentType.toLowerCase()}:${field}`;
+};
+const handleType = async (field, selected) => {
+    if(field==="sector")
+    {     
+        setSector(`sector:${selected?.value}`);
+    }
+    if (field === "category" && sector) {
+      await axios.post(`${api}/addCategoryToSector`, {
+        sector,
+        category: selected?.value
+      });
+    }
+    const value = selected ? selected.value : null;
+
+    setFormData(prev => ({ ...prev, [field]: value }));
+
+    if (value) {
+      const type = getFieldType(contentType, field);
+      await axios.post(`${api}/add?type=${type}&value=${value}`);
+      // update local options if new
+      setOptions(prev => {
+        const exists = prev[field]?.some(opt => opt.value.toLowerCase() === value.toLowerCase());
+        if (exists) return prev;
+        return {
+          ...prev,
+          [field]: [...(prev[field] || []), { value, label: value }]
+        };
+      });
+    }
+  };
+  const toTitleCase = (str) =>{
+  return str
+    .toLowerCase()
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+  }
+  useEffect(() => {
+    if (!contentType) return;
+  
+    fieldMap[contentType]?.forEach((field) => {
+      const type = getFieldType(contentType, field);
+      // If it's ads:category, use the sector-dependent endpoint
+      if (type === 'ads:category') {
+        axios.get(`${api}/suggest?type=ads:${sector}:category`)
+          .then(res => {
+            setOptions(prev => ({
+              ...prev,
+              [field]: res.data.map(item => ({ value: item, label: item }))
+            }));
+          })
+          .catch(err => console.error(err));
+      } 
+      // For all other types
+      else {
+        axios.get(`${api}/suggest?type=${type}`)
+          .then(res => {
+            setOptions(prev => ({
+              ...prev,
+              [field]: res.data.map(item => ({ value: item, label: item }))
+            }));
+          })
+          .catch(err => console.error(err));
+      }
+    });
+  }, [contentType, sector]);
+
+    useEffect(() => {
+    if (!contentType) return;
+  
+    // Keep only the fields for the selected content type
+    const newFormData = {};
+    fieldMap[contentType]?.forEach((field) => {
+      if (formData[field]) newFormData[field] = formData[field];
+    });
+  
+    setFormData(newFormData);
+  
+  }, [contentType]);
+
+
+    const submitForm=async(id,channel,region,date,file)=>{
+      try{   
+             console.log(time.start,time.end,id,contentType,formData);
+             const res=await axios.post(`${api}/forms`,{id:id,start:time.start,end:time.end,content:contentType,form:formData,channel:channel,city:region,date:date,audio:file,role:"QA"})
+              if(res)
+              {
+                    console.log(res.data);
+                    setRecords(res.data);
+                    setEditModalOpen(false);
+                    setIsModalOpen(false);
+
+
+                   setToast("Metadata submitted successfully!");
+                   setTimeout(() => setToast(null), 3000);
+          
+              }
+      }
+      catch(err)
+      {
+         console.log(err);
+      }
+  }
+
+  const handleVerify = async (id) => {
+  try {
+    const res = await axios.get(`${api}/verifydata`, { params: { id } });
+    if (res.status === 200) {
+      console.log("verified", res.data);
+
+      // Update current modal segment to QA
+      setSelectedSegment((prev) =>
+        prev && prev.id === id ? { ...prev, createdBy: "QA" } : prev
+      );
+
+       setRecords((prevRecords) =>
+        prevRecords.map((seg) =>
+          seg.id === id ? { ...seg, createdBy: "QA" } : seg
+        )
+      );
+
+    }
+  } catch (err) {
+    console.log(err);
+  }
+};
+
 
   return (
     <div className="bg-white p-4 rounded-lg shadow-md w-full">
@@ -176,15 +359,43 @@ const handleRecords=async()=>{
         <span className="text-xs text-red-600 border border-red-300 px-2 py-0.5 rounded-full">
          {data.length}{" "}Total Fingerprint Matches
         </span>
-      </div>
+      </div>   
+        <div className="flex justify-center items-center gap-8 mb-4">
+              <div>
+                <p className="text-sm text-gray-500 mb-1">Start Hour</p>
+                <input
+                  type="number"
+                  defaultValue="0"
+                  min="0"
+                  max="23"
+                  onChange={(e) => setStart(Number(e.target.value))}
+                  onKeyDown={(e) => e.preventDefault()}
+                  className="border border-gray-400 rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 w-20 text-center"
+                />
+              </div>
 
+              <div>
+                <p className="text-sm text-gray-500 mb-1">End Hour</p>
+                <input
+                  type="number"
+                  defaultValue="0"
+                   min={start + 1 || 1}
+                   max={24}
+                  onChange={(e) => setEnd(Number(e.target.value))}
+                  onKeyDown={(e) => e.preventDefault()}
+                  className="border border-gray-400 rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 w-20 text-center"
+                />
+              </div>
+            </div>
+
+        
       {/* Top Timeline */}
       <div className="overflow-x-auto">
         <div className="flex">
-          {intervals.map((time, idx) => (
+          {filteredIntervals.map((time, idx) => (
             <div
               key={idx}
-              className="min-w-[240px] h-6 flex items-center justify-center text-[10px] text-gray-600 border-r border-gray-200"
+              className="min-w-[500px] h-6 flex items-center justify-center text-[10px] text-gray-600 border-r border-gray-200"
             >
               {time}
             </div>
@@ -192,8 +403,8 @@ const handleRecords=async()=>{
         </div>
           
         {/* Bottom Data Bar */}
-        <div className="relative flex">
-    {intervals.map((slotStart, idx) => {
+    <div className="relative flex">
+    {filteredIntervals.map((slotStart, idx) => {
     const [sh, sm] = slotStart.split(":").map(Number);
     const slotStartSec = sh * 3600 + sm * 60;
     const slotEndSec = slotStartSec + 15 * 60;
@@ -252,12 +463,12 @@ const handleRecords=async()=>{
     return (
       <div
         key={idx}
-        className="relative min-w-[240px] h-20 border-r border-gray-200 bg-gray-100 cursor-pointer"
+        className="relative min-w-[500px] h-20 border-r border-gray-200 bg-gray-100 cursor-pointer"
       >
         {/* ✅ Grey Gaps */}
         {gaps.map((gap, i) => {
           const slotDurationSec = slotEndSec - slotStartSec;
-          const slotWidthPx = 240;
+          const slotWidthPx = 500;
 
           const leftPx = ((gap.start - slotStartSec) / slotDurationSec) * slotWidthPx;
           const widthPx = ((gap.end - gap.start) / slotDurationSec) * slotWidthPx;
@@ -266,6 +477,7 @@ const handleRecords=async()=>{
             <div
               key={`gap-${i}`}
               className="absolute top-0 h-full bg-gray-400 opacity-60 cursor-pointer"
+              title="Unlabeled"
               style={{
                 left: `${leftPx}px`,
                 width: `${Math.max(widthPx, 2)}px`,
@@ -287,29 +499,42 @@ const handleRecords=async()=>{
           const blockEndSec = Math.min(endSec, slotEndSec);
 
           const slotDurationSec = slotEndSec - slotStartSec;
-          const slotWidthPx = 240;
+          const slotWidthPx = 500;
 
           const leftPx =
             ((blockStartSec - slotStartSec) / slotDurationSec) * slotWidthPx;
           const widthPx =
             ((blockEndSec - blockStartSec) / slotDurationSec) * slotWidthPx;
             // console.log(block);
+            const color={
+              new:"bg-blue-500",
+              annotator:"bg-yellow-500",
+              QA:"bg-green-500"
+            }
+            
 
           return (
             <div
-              key={`block-${i}`}
-              className="absolute top-0 h-full bg-green-500 text-white text-[10px] flex items-center justify-center rounded-sm"
-              style={{
-                left: `${leftPx}px`,
-                width: `${Math.max(widthPx, 2)}px`,
-              }}
-              onClick={(e) => {
-                e.stopPropagation();
-                handleBarClick(block);
-              }}
-            >
-              {block.label}
-            </div>
+            key={`block-${i}`}
+            className={`absolute top-0 h-full ${color[block.createdBy]} text-white text-[10px] flex items-center justify-center rounded-sm`}
+            style={{
+              left: `${leftPx}px`,
+              width: `${Math.max(widthPx, 2)}px`,
+            }}
+           title={
+              block.createdBy === "Annotator"
+                ? "Annotator"
+                : block.createdBy === "new"
+                ? "Autolabelled"
+                : block.createdBy
+            }
+            onClick={(e) => {
+              e.stopPropagation();
+              handleBarClick(block);
+            }}
+          >
+            {block.label}
+          </div>
           );
         })}
       </div>
@@ -317,7 +542,12 @@ const handleRecords=async()=>{
   })}
 </div>
 </div>
-
+ <div className="flex gap-4 justify-end mt-6 text-sm">
+        <div className="flex items-center gap-1"><span className="w-3 h-3 bg-blue-500 rounded"></span>Autolabeled</div>
+        <div className="flex items-center gap-1"><span className="w-3 h-3 bg-yellow-500 rounded"></span>Annotator</div>
+        <div className="flex items-center gap-1"><span className="w-3 h-3 bg-green-500 rounded"></span>QA</div>
+        <div className="flex items-center gap-1"><span className="w-3 h-3 bg-gray-500 rounded"></span>Unlabeled</div>
+      </div>
         <div className="flex items-center gap-6 mb-4 mt-4">
             {/* Matching Segments */}
             <div className="flex items-center gap-2">
@@ -382,10 +612,10 @@ const handleRecords=async()=>{
                 {selectedSegment.type}
               </span>
             </p>
-            <p>
+            {/* <p>
               <strong>Confidence:</strong>{" "}
               <span className="text-green-600">75%</span>
-            </p>
+            </p> */}
             <p><strong>Start Time:</strong> {selectedSegment.start}</p>
             <p><strong>End Time:</strong> {selectedSegment.end}</p>
           </div>
@@ -394,7 +624,7 @@ const handleRecords=async()=>{
         {/* Content Details */}
         <div className="border rounded-lg mx-6 mb-4 p-4">
           <h3 className="font-semibold mb-2">Content Details</h3>
-          <div className="grid grid-cols-2">
+          <div>
             <p><strong>Program:</strong> {selectedSegment.program || "-"}</p>
           </div>
         </div>
@@ -403,10 +633,14 @@ const handleRecords=async()=>{
         <div className="border rounded-lg mx-6 mb-6 p-4">
           <h3 className="font-semibold mb-2">Analysis Information</h3>
           <div className="grid grid-cols-2">
-            <p><strong>Detection Method:</strong>Autolabelled</p>
+            <p><strong>Detection Method:</strong><span className="bg-purple-600 text-white text-xs px-2 py-0.5 rounded-full">{selectedSegment.createdBy==="new"?"AUTOLABELED":selectedSegment.createdBy.toUpperCase()}</span></p>
             <p><strong>Clip ID:</strong> {selectedSegment.id}</p>
           </div>
         </div>
+       {selectedSegment.comments!=="-" && 
+      <div className="border rounded-lg mx-6 mb-6 p-4">
+            <p><strong>Comments:</strong>{" "}{selectedSegment.comments.toUpperCase()}</p>
+          </div>}
         {files &&  <div className="mt-4 flex justify-center mb-4">
           <audio 
             ref={audioRef} 
@@ -420,9 +654,14 @@ const handleRecords=async()=>{
         {/* Footer Buttons */}
         <div className="flex justify-end gap-3 px-6 py-4 bg-gray-50">
           <button
-            className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-300"
+            className={`px-4 py-2 rounded border ${
+            selectedSegment.createdBy === "QA"
+              ? "bg-green-500 text-white border-green-500"
+              : "border-gray-300 hover:bg-gray-300"
+          }`}
+            onClick={()=>handleVerify(selectedSegment.id)}
           >
-           Save
+          {selectedSegment.createdBy === "QA" ? "Verified" : "Verify"}
           </button>
           <button className="px-4 py-2 bg-white border border-gray-300 rounded flex items-center gap-2 hover:bg-gray-100">
             <Play size={16} className="text-blue-500" onClick={()=>handleAudio(selectedSegment.start,selectedSegment.end)}/>
@@ -431,6 +670,7 @@ const handleRecords=async()=>{
           <button onClick={() => {
                  setEditFormData(selectedSegment); // pre-fill with segment data
                  setEditModalOpen(true);
+                 handleAudio(selectedSegment.start,selectedSegment.end)
                   }}
                   className="px-4 py-2 bg-orange-500 text-white rounded hover:bg-orange-600">
             Request Changes
@@ -440,6 +680,147 @@ const handleRecords=async()=>{
    
   </div>
     )}
+{editModalOpen && 
+       <div className="fixed inset-0 flex items-center justify-center bg-black/40 z-50 p-4">
+             <Draggable nodeRef={nodeRef} handle=".drag-handle" bounds="parent">
+           <div ref={nodeRef}className=" bg-white rounded-2xl shadow-xl p-6 w-full max-w-xl relative max-h-[90vh] overflow-y-auto">
+             {/* Close Button */}
+             <button
+               onClick={() =>setEditModalOpen(false)}
+               className="absolute top-4 right-4 text-gray-500 hover:text-gray-700"
+             >
+               <X />
+             </button>
+       
+             <h2 className="drag-handle text-xl font-semibold mb-4 text-center cursor-grab">Add New Clip</h2>
+               <div className="mb-4 grid grid-cols-2 gap-y-2 gap-x-4 text-sm">
+                <div>
+                <label className="block text-gray-600 text-xs mb-1">Channel</label>
+                <input
+                  type="text"
+                  value={editFormData.channel}
+                  onChange={(e) => setEditFormData({ ...editFormData, station: e.target.value })}
+                  className="border rounded px-2 py-1 w-full"
+                />
+              </div>
+             <div>
+           <label className="block text-gray-600 text-xs mb-1">Region</label>
+           <input
+             type="text"
+             value={editFormData.region}
+             onChange={(e) => setEditFormData({ ...editFormData, city: e.target.value })}
+             className="border rounded px-2 py-1 w-full"
+           />
+         </div>
+       
+         <div>
+           <label className="block text-gray-600 text-xs mb-1">Start Time</label>
+           <input
+             type="text"
+             value={editFormData.start}
+             onChange={(e) => setTime({ ...time, start: e.target.value })}
+             className="border rounded px-2 py-1 w-full"
+           />
+         </div>
+       
+         <div>
+           <label className="block text-gray-600 text-xs mb-1">End Time</label>
+           <input
+             type="text"
+             value={editFormData.end}
+             onChange={(e) => setTime({ ...time, end: e.target.value })}
+             className="border rounded px-2 py-1 w-full"
+           />
+         </div>
+       
+         <div className="col-span-2">
+           <label className="block text-gray-600 text-xs mb-1">Date</label>
+           <input
+             type="text"
+             value={new Date(editFormData.date).toLocaleDateString()}
+             className="border rounded px-2 py-1 w-full"
+           />
+         </div>
+       </div>
+             {/* Audio Player */}
+           {loading? 
+               <div className="flex justify-center items-center">
+                       <Loader2 className="animate-spin text-blue-500 w-8 h-8" />
+                       </div> :
+               <div className="mt-4 flex justify-center mb-4"> 
+                 <audio 
+                   src={files} 
+                   controls 
+                   className="w-full max-w-md"
+                 />
+                 </div>}
+             <select
+               value={contentType}
+               onChange={(e) => setContentType(e.target.value)}
+               className="border p-2 rounded w-full mb-4"
+             >
+               <option value="">Select Content Type</option>
+               <option value="Song">Song</option>
+               <option value="Ads">Ad</option>
+               <option value="Program">Program</option>
+               <option value="Jingle">Jingle</option>
+               <option value="Sports">Sports</option>
+               <option value="Error">Error</option>
+             </select>
+       
+             {/* Dynamic Fields */}
+              <form className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+             {fieldMap[contentType]?.map((field) => (
+                   <CreatableSelect
+                     key={field}
+                     placeholder={field.charAt(0).toUpperCase() + field.slice(1)}
+                     options={options[field] || []}
+                     onChange={(selected) => handleType(field, selected)}
+                     onCreateOption={(inputValue) => {
+                       const titleValue = toTitleCase(inputValue); // capitalize first letter of each word
+                       const newOption = { value: titleValue, label: titleValue };
+       
+                       // Add new option to state
+                       setOptions(prev => ({
+                         ...prev,
+                         [field]: [...(prev[field] || []), newOption],
+                       }));
+       
+                       // Also update formData
+                       handleType(field, newOption);
+                     }}
+                     formatCreateLabel={(input) => `Add "${toTitleCase(input)}"`}
+                     className="text-sm"
+                     isClearable
+                     maxMenuHeight={100}
+                   />
+                 ))}
+       
+              </form>
+              {contentType==="Jingle" && <input type='text' placeholder='Description....' className='border rounded px-2 py-1 w-full mt-2 h-10' onChange={(e) => handleType("Jdesc", e.target)}></input>}
+               {contentType && (
+                 <div className='flex justify-end'>
+                  <button
+                   type="submit"
+                   className="bg-purple-500 text-white px-4 py-2 rounded hover:bg-purple-700 mt-2 col-span-full"
+                   onClick={()=>submitForm(editFormData.id,editFormData.channel,editFormData.region,new Date(editFormData.date).toLocaleDateString(),files)}
+                 >
+               Submit
+             </button>
+             </div>
+               )}
+             </div>
+             </Draggable>
+           </div>}
+           
+       
+            {toast && (
+         <div className="fixed bottom-5 right-5 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg animate-slide-in">
+           {toast}
+         </div>
+       )}
+
+{/* 
          <EditModal open={editModalOpen}
          setOpen={setEditModalOpen}
          editFormData={editFormData}
@@ -449,8 +830,8 @@ const handleRecords=async()=>{
 
             {
               greyblock && <UnlabelledData open={greyblock} setOpen={setGreyBlock} slotStart={slotStart} slotEnd={slotEnd} audio={file}/>
-            }
+            } */}
     
       </div>
   );
-}
+} 

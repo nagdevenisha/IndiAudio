@@ -3,12 +3,15 @@ import { Eye, Radio, ArrowLeft,X } from "lucide-react";
 import { useLocation } from "react-router-dom";
 import { useEffect } from "react";
 import WaveSurfer from "wavesurfer.js";
-import audio from '../audio.mp3';
 import RegionsPlugin from "wavesurfer.js/dist/plugins/regions.js";
 import axios from "axios";
 
 
- const api="http://localhost:3001";
+
+//  const api="http://localhost:3001/data";
+
+const api=process.env.REACT_APP_API+"/data";
+
 const LabeledData = () => {
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -17,6 +20,9 @@ const LabeledData = () => {
   const[segment,seTsegment]=useState([]);
   const[hourId,setHourId]=useState(0);
   const[url,setUrl]=useState('');
+  const[data,setData]=useState({});
+  const[duration,setDuration]=useState(0);
+  const[allFiles,setAllFiles]=useState([])
 
   const[id,setId]=useState(0);
   const filesPerPage = 5; // number of audio files per page
@@ -29,50 +35,65 @@ const LabeledData = () => {
   const location=useLocation();
   useEffect(()=>{
        setFiles(location.state.data);
+       setAllFiles(location.state.data); 
   },[])
 
 
 
+  const allItems = files.flatMap(parent =>
+  parent.items.map(item => ({
+    ...item,
+    indexId: parent.indexId,
+    labeledBy: parent.labeledBy,
+    verifiedBy: parent.verifiedBy,
+    created:parent.date
+  }))
+);
 
   // Filter based on search
-  const filteredFiles = files.filter(
-    (file) =>
-      // file.id.toLowerCase().includes(search.toLowerCase()) ||
-      file.channel.toLowerCase().includes(search.toLowerCase()) ||
-      file.date.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredFiles = allItems.filter(
+  (file) =>
+    file.region.toLowerCase().includes(search.toLowerCase()) ||
+    file.channel.toLowerCase().includes(search.toLowerCase()) ||
+    file.date.toLowerCase().includes(search.toLowerCase())
+);
+
 
 
   // Group by audioTaskId + channel + date
 const groupedFiles = filteredFiles.reduce((acc, file) => {
-  const key = `${file.audioTaskId}-${file.channel}-${file.date}`;
+  const key = file.indexId;
   if (!acc[key]) {
     acc[key] = {
-      id: file.audioTaskId,
+      id: file.indexId,
       channel: file.channel,
-      date: new Date(file.audioTask.completionDate).toLocaleString(),
+      city:file.region,
+      date: new Date(file.date).toLocaleString(),
       total: 0,
       ads: 0,
       jingles: 0,
       songs: 0,         
       programs: 0,
+      created:file.created,
+      labeledBy:[file.labeledBy],
+      verifiedBy:file.verifiedBy
     };
   }
   
 
   acc[key].total++;
 
-  switch (file.contentType) {
-    case "Advertisement":
+  switch (file.type) {
+    case "advertisement":
       acc[key].ads++;
       break;
-    case "Jingle":
+    case "jingle":
       acc[key].jingles++;
       break;
-    case "Song":
+    case "song":
       acc[key].songs++;
       break;
-    case "Program":
+    case "program":
       acc[key].programs++;
       break;
     default:
@@ -92,16 +113,12 @@ const summaryData = Object.values(groupedFiles);
 
 
 const typeColors = {
-  Advertisement: "#f87171",      // red
-  Song: "#60a5fa",    // blue
-  Program: "#34d399", // green
-  Jingle: "#facc15",  // yellow
+  advertisement: "#f87171",      // red
+  song: "#60a5fa",    // blue
+  program: "#34d399", // green
+  jingle: "#facc15",  // yellow
 };
 
-const parseTime = (timeStr) => {
-  const [hh, mm, ss] = timeStr.split(":").map(Number);
-  return hh * 3600 + mm * 60 + ss;
-};
 
   const intervals = [];
   for (let h = 0; h < 24; h++) {
@@ -109,15 +126,8 @@ const parseTime = (timeStr) => {
       intervals.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
     }
   }
-  const formatTime = (secs) => {
-    if (isNaN(secs)) return "00:00:00";
-    const h = Math.floor(secs / 3600).toString().padStart(2, "0");
-    const m = Math.floor((secs % 3600) / 60).toString().padStart(2, "0");
-    const s = Math.floor(secs % 60).toString().padStart(2, "0");
-    return `${h}:${m}:${s}`;
-  };
 
-const [currentTime, setCurrentTime] = useState(0);
+const [currentTime, setCurrentTime] = useState("00:00:00");
  useEffect(() => {
   if ( files.length === 0 || !hourId) return;
 
@@ -126,8 +136,16 @@ const [currentTime, setCurrentTime] = useState(0);
     try {
       // Since all entries under same audioTaskId share the same audioUrl,
       // we can just take the first match.
-      const relatedFile = files.find(f => f.audioTaskId === hourId);
-      const audioUrl = relatedFile?.audioTask?.audioUrl;
+      const parts = hourId.split("_");
+      const city = parts[0];             // karnal
+      const date = parts[1];             // 2025-07-01
+      const station = parts[2]; 
+      const bucketName = "radio-clip-studio-audio";
+      const capitalizedCity = city.charAt(0).toUpperCase() + city.slice(1).toLowerCase();
+      const fileKey = `${capitalizedCity}/${station}/${date}merged.mp3`;
+      const audioUrl = `https://${bucketName}.s3.ap-south-1.amazonaws.com/${fileKey}`;
+      console.log(audioUrl);
+      
 
       console.log(audioUrl);
 
@@ -138,9 +156,9 @@ const [currentTime, setCurrentTime] = useState(0);
 
       // Fetch signed URL from backend
       const res = await axios.get(
-        `${api}/app/download?key=${encodeURIComponent(audioUrl)}`
+        `${api}/download?key=${encodeURIComponent(audioUrl)}`
       );
-
+      console.log(res.data);
       setUrl(res.data.url); // store signed URL for wavesurfer
     } catch (err) {
       console.error("Error fetching signed URL:", err);
@@ -186,27 +204,31 @@ useEffect(() => {
   });
 
 ws.on("ready", () => {
-  // Filter files for this segment
-  const filteredFiles = files.filter(
-    (f) =>
-      f.audioTaskId === segment.id &&
-      f.channel === segment.channel &&
-      new Date(f.audioTask.completionDate).toLocaleString() === segment.date
-  );
+  
+  const dura = ws.getDuration(); // in seconds
+  console.log("Audio duration:", duration);
+   const formatTime = (secs) => {
+    const h = Math.floor(secs / 3600).toString().padStart(2, "0");
+    const m = Math.floor((secs % 3600) / 60).toString().padStart(2, "0");
+    const s = Math.floor(secs % 60).toString().padStart(2, "0");
+    return `${h}:${m}:${s}`;
+  };
 
-  if (filteredFiles.length > 0) {
+  setDuration(formatTime(dura));
+  if (segment.length > 0) {
     // take the first entry as base audio start
-    const audioStartTime = filteredFiles[0].startTime;
+    console.log(segment[0].start)
+    const audioStartTime = segment[0].start;
 
-    filteredFiles.forEach((f) => {
-      const start = parseRelativeTime(f.startTime, audioStartTime);
-      const end = parseRelativeTime(f.endTime, audioStartTime);
+    segment.forEach((f) => {
+      const start = parseRelativeTime(f.start, audioStartTime);
+      const end = parseRelativeTime(f.end, audioStartTime);
 
       if (start >= 0 && end > start) {
         regionsPlugin.addRegion({
           start,
           end,
-          color: typeColors[f.contentType] + "55",
+          color: typeColors[f.type] + "55",
           drag: false,
           resize: false,
         });
@@ -215,7 +237,13 @@ ws.on("ready", () => {
   }
 
   ws.on("audioprocess", (time) => {
+     if (segment.length > 0) {
+    const audioStartTime = toSeconds(segment[0].start); // segment start in seconds
+    const displayTime = audioStartTime + time;           // relative to absolute audio
+    setCurrentTime(formatTime(displayTime));
+  } else {
     setCurrentTime(formatTime(time));
+  }
   });
 
   setIsReady(true);
@@ -226,39 +254,70 @@ ws.on("ready", () => {
 }, [url, open]);
 
 
-const handlePop = (seg, id,idx) => {
+const handlePop = (channel,city,date,seg,hourId) => {
   setOpen(true);
-  setHourId(idx);
-  // find one representative file from the same group
+
   console.log(seg);
-  console.log(files);
-  const representativeFile = files.find(
-    (f) =>
-      f.audioTaskId === seg.id &&
-      f.channel === seg.channel &&
-      new Date(f.audioTask.completionDate).toLocaleString() === seg.date
-  );
-   
-  console.log(representativeFile);
-  // merge seg summary with nested file details
-  seTsegment({ ...seg, file: representativeFile });
-  setId(id);
+  setData(seg);
+
+  // Get all files for this group
+ const datePart = date.split(",")[0]; // "01/07/2025" from "01/07/2025, 05:30:00"
+
+  // Convert DD/MM/YYYY → YYYY-MM-DD
+  const [dd, mm, yyyy] = datePart.split("/");
+  const formattedDate = `${yyyy}-${mm}-${dd}`;
+
+  const unique = `${city}_${formattedDate}_${channel}`;
+  setHourId(unique);
+  console.log(unique);
+  console.log(filteredFiles)
+ const groupedFiles = filteredFiles
+  .filter(f => unique === f.indexId)
+  .sort((a, b) => {
+    const toSeconds = (time) => {
+      const [hh, mm, ss] = time.split(":").map(Number);
+      return hh * 3600 + mm * 60 + ss;
+    };
+
+    // Compare by start time first
+    const startDiff = toSeconds(a.start) - toSeconds(b.start);
+    if (startDiff !== 0) return startDiff;
+
+    // If start times are equal, compare by end time
+    return toSeconds(a.end) - toSeconds(b.end);
+  });
+
+
+  console.log("All files for this indexId:", groupedFiles);
+
+  // Save all files in segment
+  seTsegment( groupedFiles);
+  setId(hourId);
 };
 
-const handleByDate=async(e)=>{
- 
-   console.log(e);
-    try
-    { 
-      const res=await axios.get(`${api}/app/labelBydate`,
-        { params:{date:e} }
-      );
-       if(res)
-         { setFiles([]); setFiles(res.data); console.log(res.data); } 
-      } 
-      catch(err) 
-      { console.log(err); }
-}
+
+const handleByDate = (dateStr) => {
+  if (!dateStr) {
+    setFiles(allFiles); // reset if empty
+    return;
+  }
+
+  const filtered = allFiles.flatMap(parent => {
+    const parts = parent.indexId.split("_");
+    const datePart = parts[1];
+    console.log(datePart); // now logs every time
+
+    if (datePart === dateStr) {
+      return [{
+        ...parent,
+        items: parent.items
+      }];
+    }
+    return [];
+  });
+
+  setFiles(filtered);
+};
 
 
   return (
@@ -283,7 +342,7 @@ const handleByDate=async(e)=>{
         <div className="flex flex-col md:flex-row md:items-center md:space-x-4 space-y-2 md:space-y-0">
           <input
             type="text"
-            placeholder="Search by station, date, or hour ID..."
+            placeholder="Search by station, city..."
             className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
             value={search}
             onChange={(e) => {
@@ -310,6 +369,7 @@ const handleByDate=async(e)=>{
           <thead>
             <tr className="border-b text-gray-600">
               <th className="p-3">Hour ID</th>
+              <th className="p-3">City</th>
               <th className="p-3">Station</th>
               <th className="p-3">Date</th>
               <th className="p-3">Total Labels</th>
@@ -324,8 +384,15 @@ const handleByDate=async(e)=>{
             {currentFiles.map((file, idx) => (
               <tr key={idx} className="border-b hover:bg-gray-50">
                 <td className="p-5 font-semibold">{String(idx + 1).padStart(3, "0")}</td>
+                 <td className="p-5 text-gray-600">{file.city.toUpperCase()}</td>
                 <td className="p-5 flex items-center">
-                  <Radio className="w-4 h-4 text-purple-600 mr-2" /> {file.channel}
+                  <Radio className="w-4 h-4 text-purple-600 mr-2" />
+                 {/* <img
+                      className="rounded-full w-6 h-6"
+                      src="/Images/radioCity.avif" alt="radio"
+                    /> */}
+
+                   {file.channel.toUpperCase()}
                 </td>
                 <td className="p-5 text-gray-600">{file.date}</td>
                 <td className="p-5">
@@ -344,8 +411,8 @@ const handleByDate=async(e)=>{
                   <span className="px-3 py-1 rounded-full text-sm bg-gray-200 text-gray-700"> {file.programs}</span>
                 </td>
                 <td className="p-5 text-right">
-                  <div className="flex justify-end"> <button className="flex items-center bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded-md text-sm" onClick={()=>handlePop(file,String(idx + 1).padStart(3, "0"),file.id)}>
-                     <Eye className="w-4 h-4 mr-1" /> View Details </button> </div>
+                  <div className="flex justify-end"> <button className="flex items-center bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded-md text-sm" onClick={()=>handlePop(file.channel,file.city,file.date,file,String(idx + 1).padStart(3, "0"))}>
+                     <Eye className="w-4 h-4 mr-1" /> View Details </button></div>
                 </td>
               </tr>
             ))}
@@ -443,7 +510,7 @@ const handleByDate=async(e)=>{
       <div className="flex justify-between items-center border-b pb-3 top-0 bg-white z-10">
         <h2 className="text-lg font-semibold">Audio Details - {id}</h2>
         <button 
-          onClick={() => setOpen(false)} 
+          onClick={() => {setOpen(false);setCurrentTime("00:00:00")}} 
           className="text-gray-600 hover:text-red-500"
         >
           <X size={20} />
@@ -455,7 +522,7 @@ const handleByDate=async(e)=>{
         <h3 className="text-md font-semibold mb-2">▶ Audio Player</h3>
         <div className="flex gap-2 mb-3 overflow-x-auto">
          <div className="overflow-x-auto w-full border rounded-md">
-          <div ref={containerRef} style={{ width: "3000px", height: "100px" }} />
+          <div ref={containerRef} style={{ width: "4000px", height: "150px" }} />
         </div>
         </div>
 
@@ -481,16 +548,15 @@ const handleByDate=async(e)=>{
       <div className="p-4 border rounded-lg bg-gray-50 w-full">
         <h3 className="text-md font-semibold mb-2">Metadata</h3>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-          <p><b>City:</b> {segment.file?.city || "N/A"}</p>
-          <p><b>Station:</b> {segment.channel}</p>
-          <p><b>Total Duration:</b> 1:00:00</p>
-          <p><b>Total Labels:</b> {segment.total}</p>
-          <p><b>Labeled By:</b> {segment.file?.audioTask?.task?.assignto || "N/A"}</p>
-          <p><b>Created At:</b> 
-            {segment.file?.audioTask?.completionDate
-              ? new Date(segment.file.audioTask.completionDate).toLocaleString()
-              : "N/A"}
+          <p><b>City:</b> {data.city?.toUpperCase() || "N/A"}</p>
+          <p><b>Station:</b> {data.channel.toUpperCase() || "N/A"}</p>
+          <p><b>Total Duration:</b>{duration}</p>
+          <p><b>Total Labels:</b> {data.total}</p>
+          <p><b>Labeled By:</b> {data.labeledBy?.length > 0 ? data.labeledBy.join(", ") : "N/A"}</p>
+          <p><b>Verified By:</b> 
+            {data.verifiedBy}
           </p>
+          <p><b>Created At:</b> {data.created?data.created:"N/A"}</p>
 
         </div>
       </div>
@@ -511,50 +577,34 @@ const handleByDate=async(e)=>{
         </tr>
       </thead>
       <tbody>
-         {files
-          .filter(
-            (f) =>
-              f.audioTaskId === segment.id &&
-              f.channel === segment.channel &&
-              new Date(f.audioTask.completionDate).toLocaleString() === segment.date
-          )
+         {segment
           .map((label, idx) => (
             <tr key={label.id} className="hover:bg-gray-50">
               <td className="p-3 border-b">{idx + 1}</td>
               <td className="p-3 border-b">
                 <span
                   className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                    label.contentType === "Advertisement"
+                    label.type === "advertisement"
                       ? "bg-red-400 text-white"
-                      : label.contentType === "Song"
-                      ? "bg-purple-400 text-white"
-                      : label.contentType === "Program"
+                      : label.type === "song"
+                      ? "bg-blue-400 text-white"
+                      : label.type === "program"
+                      ? "bg-green-400 text-gray-700"
+                      : label.type === "jingle"
                       ? "bg-yellow-400 text-gray-700"
-                      : label.contentType === "Jingle"
-                      ? "bg-blue-400 text-gray-700"
                       : "bg-gray-200 text-gray-700"
                   }`}
                 >
-                  {label.contentType === "Advertisement"
+                  {label.type === "advertisement"
                     ? "Ad"
-                    : label.contentType}
+                    : label.type}
                 </span>
               </td>
               <td className="p-3 border-b">
-                {label.contentType === "Song"
-                  ? label.album
-                  : label.contentType === "Advertisement"
-                  ? label.brand
-                  : label.contentType === "Program"
-                  ? label.programTitle
-                  : label.contentType === "Jingle"
-                  ? "Jingle"
-                  : label.contentType === "Error"
-                  ? "Error"
-                  : ""}
+                {label.program}
               </td>
-              <td className="p-3 border-b">{label.startTime}</td>
-              <td className="p-3 border-b">{label.endTime}</td>
+              <td className="p-3 border-b">{label.start}</td>
+              <td className="p-3 border-b">{label.end}</td>
             </tr>
           ))}
       </tbody>

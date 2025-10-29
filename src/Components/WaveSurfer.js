@@ -60,7 +60,7 @@ const startOffset = timeToSeconds(start);
     const fakePeaks = new Array(2000).fill(0).map(() => Math.random() * 2 - 1);
     // Important: wait a tick before loading (fix AbortError)
      if (audio) {
-      ws.load(audio,fakePeaks);
+      ws.load(audio);
     }
 
     ws.on("ready", () => {

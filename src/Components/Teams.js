@@ -6,10 +6,12 @@ import Select from 'react-select';
 import { useRef } from "react";
 import axios from "axios";
 
+
 function Teams() {
 
-  //  const api="https://backend-fj48.onrender.com";
-   const api="http://localhost:3001";
+  //  const api="https://backend-urlk.onrender.com";
+  //  const api="http://localhost:3001/teams";
+  const api=process.env.REACT_APP_API+"/teams";
 
 
   const [selectedCity, setSelectedCity] = useState("");
@@ -34,8 +36,8 @@ function Teams() {
   const navigate=useNavigate();
   const handleCities=async()=>{
   try{
-      const res=await axios.get(`${api}/app/city`);
-      const response=await axios.get(`${api}/app/login`,{
+      const res=await axios.get(`${api}/city`);
+      const response=await axios.get(`${api}/login`,{
          params:{username:users}
       });
       const { user } = response.data;
@@ -57,10 +59,10 @@ function Teams() {
   const handleTeams=async(city)=>{
   try{
     console.log(city);
-      const res=await axios.get(`${api}/app/station`,{
+      const res=await axios.get(`${api}/station`,{
       params:{city}
      });
-     const response=await axios.get(`${api}/app/teamspercity`,{
+     const response=await axios.get(`${api}/teamspercity`,{
       params:{city}
      })
      console.log(response.data);
@@ -99,7 +101,7 @@ function Teams() {
         members: selectedMembers, // extract names only
       };
      try {
-      const res = await axios.post(`${api}/app/saveteam`,payload);
+      const res = await axios.post(`${api}/saveteam`,payload);
     alert('Team Created');
     console.log(res.data);
     setTeams([...teams, res.data.team]);
@@ -110,7 +112,7 @@ function Teams() {
   };
   const handleMembers=async()=>{
            try{
-                const res= await axios.get(`${api}/app/getmembers`);
+                const res= await axios.get(`${api}/getmembers`);
                 if(res.data)
                 {
                     console.log(res.data);
@@ -118,7 +120,8 @@ function Teams() {
                      const formatted = res.data.map(m => ({
                       value: m.fullname,           // or `${m.fullname}-${m.role}` if you need uniqueness
                       label: `${m.fullname} (${m.role==="Member"?"Annotator":m.role})`, // show both in dropdown
-                      role: m.role                 // keep role separately if you need later
+                      role: m.role  ,
+                      email:m.username               // keep role separately if you need later
                     }));
 
                   console.log(formatted);
@@ -163,7 +166,7 @@ function Teams() {
   
 const fetchtasks=async(team)=>{
          console.log(team);
-         const res=await axios.post(`${api}/app/getTasks`, {
+         const res=await axios.post(`${api}/getTasks`, {
                   leadName: team.leadName,
                   teamName: team.teamName,
                   station: team.station,
@@ -207,25 +210,29 @@ const fetchtasks=async(team)=>{
         <label className="block text-gray-600 mb-2 font-medium">
           Choose City to View Teams
         </label>
-        <select
-          value={selectedCity} 
-          // onChange={(e) => setSelectedCity(e.target.value)}
-           onFocus={handleCities} 
-            onChange={(e) => {
-              const city = e.target.value;
-              setSelectedCity(city);
-              if (city) handleTeams(city); 
-            }}
-          className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-gray-700"
-        >
-          <option value="">Select city...</option>
-          {cities.map((city, idx) => (
-            <option key={idx} value={city}>
-              {city}
-            </option>
-          ))}
-        </select>
-
+       <Select
+                options={cities.map(city => ({ value: city, label: city }))}
+                value={selectedCity ? { value: selectedCity, label: selectedCity } : null}
+                onChange={(option) => {
+                  setSelectedCity(option.value);
+                  handleTeams(option.value);
+                }}
+                onFocus={handleCities}
+                placeholder="Select city..."
+                styles={{
+                  // Outer menu container
+                  menu: (provided) => ({
+                    ...provided,
+                    zIndex: 9999, // so it’s above modals etc.
+                  }),
+                  // The scrollable list
+                  menuList: (provided) => ({
+                    ...provided,
+                    maxHeight: 200,   // 👈 Limit height
+                    overflowY: "auto" // 👈 Single scrollbar
+                  }),
+                }}
+              />
         {/* Dynamic Content */}
         {selectedCity && (
           <div className="mt-6 bg-purple-50 border border-purple-200 rounded-xl p-4">

@@ -36,15 +36,15 @@ function App() {
          <Route
             path="/dashboard"
             element={
-              <ProtectedRoute roles={["Admin"]}>
+              <ProtectedRoute roles={["Admin", "Team Lead"]}>
                 <Dashboard />
               </ProtectedRoute>
             }
           />
           <Route path="/taskbar"  element={
-              <ProtectedRoute roles={["Member"]}>
-                <TaskBar/>
-              </ProtectedRoute>
+             <ProtectedRoute roles={["Member", "QA"]}>
+                  <TaskBar />
+                </ProtectedRoute>
             }></Route>
           <Route 
             path="/teams" 
@@ -57,23 +57,15 @@ function App() {
           <Route 
             path="/labelleddata" 
             element={
-              <ProtectedRoute roles={["Admin"]}>
+              <ProtectedRoute roles={["Admin","Team Lead"]}>
                 <LabeledData/>
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/labelled" 
-            element={
-              <ProtectedRoute roles={["Admin"]}>
-                <Labeled/>
               </ProtectedRoute>
             } 
           />
           <Route 
             path="/userActivity" 
             element={
-              <ProtectedRoute roles={["Admin"]}>
+              <ProtectedRoute roles={["Admin","Team Lead"]}>
                 <UserManagement/>
               </ProtectedRoute>
             } 

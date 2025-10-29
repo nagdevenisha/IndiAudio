@@ -17,8 +17,9 @@ const UserManagement = () => {
   const usersPerPage = 8; // show 10 users per page
   
 
-
- const api="http://localhost:3001";
+//  const api="https://backend-urlk.onrender.com"
+//  const api="http://localhost:3001/data";
+ const api=process.env.REACT_APP_API+"/data";
 
   const toggleMenu = (idx) => {
     setOpen(open === idx ? null : idx);
@@ -51,7 +52,7 @@ const UserManagement = () => {
   }
   const handleDelete=async()=>{
       try{
-           const res=await axios.get(`${api}/app/deleteUser`,{
+           const res=await axios.get(`${api}/deleteUser`,{
               params:{username:username}
            });
            if(res.status===200)
@@ -69,7 +70,7 @@ const UserManagement = () => {
 
   const updateUser=async()=>{
       try{
-             const res=await axios.post(`${api}/app/updateUser`,{username,role});
+             const res=await axios.post(`${api}/updateUser`,{username,role});
              if(res.status===200)
            {
                console.log(res.data);
@@ -170,7 +171,7 @@ const UserManagement = () => {
                     />
                   </button>
                   {open === idx && (
-                    <div className="absolute right-5 mt-2 w-40 bg-white border rounded-md shadow-lg z-10">
+                    <div className="absolute right-5 mt-2 w-40 bg-white border rounded-md shadow-lg z-10" onMouseLeave={()=>setOpen(false)}>
                       <button
                         className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                         onClick={()=>handleEdit(user.username,user.role,user.fullname)}
