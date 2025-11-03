@@ -82,9 +82,8 @@ export default function Timeline({audio,starts,data,date,city,station}) {
 
   useEffect(() => {
   // Listen for updates
-  socket.on("recordsUpdated", (updatedRecords) => {
-    
-    setRecords(updatedRecords); // replace entire state
+        socket.on("recordsUpdated", (updatedRecords) => {
+        setRecords(updatedRecords); // replace entire state
   });
   return () => socket.off("recordsUpdated");
 }, [city, station, date]);

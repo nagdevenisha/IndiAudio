@@ -1,5 +1,5 @@
 import { useState ,useRef} from "react";
-import { Eye, Radio, ArrowLeft,X } from "lucide-react";
+import { Eye, Radio, ArrowLeft,X ,Loader2} from "lucide-react";
 import { useLocation } from "react-router-dom";
 import { useEffect } from "react";
 import WaveSurfer from "wavesurfer.js";
@@ -11,6 +11,7 @@ import axios from "axios";
 //  const api="http://localhost:3001/data";
 
 const api=process.env.REACT_APP_API+"/data";
+const api2="http://localhost:3001";
 
 const LabeledData = () => {
   const [search, setSearch] = useState("");
@@ -33,10 +34,10 @@ const LabeledData = () => {
   const [isReady, setIsReady] = useState(false);
 
   const location=useLocation();
-  useEffect(()=>{
-       setFiles(location.state.data);
-       setAllFiles(location.state.data); 
-  },[])
+  // useEffect(()=>{
+  //      setFiles(location.state.data);
+  //      setAllFiles(location.state.data); 
+  // },[])
 
 
 
@@ -319,6 +320,28 @@ const handleByDate = (dateStr) => {
   setFiles(filtered);
 };
 
+useEffect(() => {
+      const labelleddata=async()=>{
+        try{
+                const res=await axios.get(`${api2}/dashboard/findData`);
+                if(res)
+                {
+                  if(res.data)
+                  {
+                    console.log(res.data);
+                     setFiles(res.data);
+                     setAllFiles(res.data); 
+                  }
+                }
+        } 
+        catch(err)
+        {
+          console.log(err);
+        }
+}
+ labelleddata();
+  }, []);
+
 
   return (
     <div className="p-6">
@@ -364,7 +387,12 @@ const handleByDate = (dateStr) => {
           <Radio className="w-5 h-5 mr-2 text-purple-600" /> Hourly Audio Files (
            {summaryData.length})
         </h2>
-
+           {currentFiles.length === 0 ? (
+          <div className="flex justify-center items-center w-full py-6">
+            <Loader2 className="animate-spin mr-2 text-gray-500 w-5 h-5" />
+            <span className="text-gray-600 text-sm">Fetching Report...</span>
+          </div>
+        ) : (
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="border-b text-gray-600">
@@ -418,6 +446,7 @@ const handleByDate = (dateStr) => {
             ))}
           </tbody>
         </table>
+        )}
 
         {/* Pagination */}
       <div className="flex justify-between items-center mt-4">

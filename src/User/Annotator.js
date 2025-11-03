@@ -47,6 +47,7 @@ function generateItemId() {
    //  const api="https://backend-urlk.onrender.com";
   //  const api="http://localhost:3001/annotator";
    const api=process.env.REACT_APP_API+"/annotator";
+   const api1=process.env.REACT_APP_API+"/timeline";
    
      useEffect(()=>{
         console.log(location.state.anot)
@@ -278,7 +279,7 @@ const getFieldType = (contentType, field) => {
     const type = getFieldType(contentType, field);
     // If it's ads:category, use the sector-dependent endpoint
     if (type === 'ads:category') {
-      axios.get(`${api}/suggest?type=ads:${sector}:category`)
+      axios.get(`${api1}/suggest?type=ads:${sector}:category`)
         .then(res => {
           setOptions(prev => ({
             ...prev,
@@ -289,7 +290,7 @@ const getFieldType = (contentType, field) => {
     } 
     // For all other types
     else {
-      axios.get(`${api}/suggest?type=${type}`)
+      axios.get(`${api1}/suggest?type=${type}`)
         .then(res => {
           setOptions(prev => ({
             ...prev,
@@ -308,7 +309,7 @@ const getFieldType = (contentType, field) => {
         setSector(`sector:${selected?.value}`);
     }
     if (field === "category" && sector) {
-      await axios.post(`${api}/addCategoryToSector`, {
+      await axios.post(`${api1}/addCategoryToSector`, {
         sector,
         category: selected?.value
       });
@@ -319,7 +320,7 @@ const getFieldType = (contentType, field) => {
 
     if (value) {
       const type = getFieldType(contentType, field);
-      await axios.post(`${api}/add?type=${type}&value=${value}`);
+      await axios.post(`${api1}/add?type=${type}&value=${value}`);
       // update local options if new
       setOptions(prev => {
         const exists = prev[field]?.some(opt => opt.value.toLowerCase() === value.toLowerCase());

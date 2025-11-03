@@ -14,7 +14,7 @@ import Labellingworkspace from "./Components/Labellingworkspace";
 import LabeledData from "./User/LabelledData";
 import UserManagement from "./User/UserMangement";
 import Annotator from "./User/Annotator";
-import Labeled from "./User/Labelled";
+// import Labeled from "./User/Labelled";
 
 function App() {
   return (

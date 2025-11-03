@@ -95,12 +95,12 @@ const handleSave=async()=>{
 
 const userActivity=async()=>{
     try{
-           const res=await axios.get(`${api}/findUsers`);
-           if(res)
-           {
-             console.log(res.data);
-             navigate('/userActivity',{state:{data:res.data}})
-           }
+          //  const res=await axios.get(`${api}/findUsers`);
+          //  if(res)
+          //  {
+          //    console.log(res.data);
+             navigate('/userActivity');
+          //  }
     }
     catch(err)
     {
@@ -109,17 +109,17 @@ const userActivity=async()=>{
 }
 const labelleddata=async()=>{
    try{
-          const res=await axios.get(`${api}/findData`);
-           if(res)
-           {
-             console.log(res.data);
-             if(res.data)
-             {
-               console.log(res.data);
-               navigate('/labelleddata',{state:{data:res.data}})
+          // const res=await axios.get(`${api}/findData`);
+          //  if(res)
+          //  {
+          //    console.log(res.data);
+          //    if(res.data)
+          //    {
+          //      console.log(res.data);
+               navigate('/labelleddata')
             
-             }
-           }
+          //    }
+          //  }
           // navigate('/labelleddata');
    } 
    catch(err)

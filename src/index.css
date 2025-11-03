@@ -11,6 +11,7 @@ body {
    user-select: none; /* Standard */
   -webkit-user-select: none; /* Safari */
   -ms-user-select: none; /* IE 10+ */
+  user-select: none;
 }
 
 code {

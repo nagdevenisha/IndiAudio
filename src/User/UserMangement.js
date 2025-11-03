@@ -1,7 +1,8 @@
-import {  useState } from "react";
-import { MoreVertical, Users, ArrowLeft, Plus, Edit, Trash } from "lucide-react";
+import {  useEffect, useState } from "react";
+import { MoreVertical, Users, ArrowLeft, Plus, Edit, Trash,Loader2 } from "lucide-react";
 import { useNavigate,useLocation } from "react-router-dom";
 import axios from 'axios';
+
 
 const UserManagement = () => {
   const [search, setSearch] = useState("");
@@ -26,7 +27,7 @@ const UserManagement = () => {
   };
 
 
- const [users, setUsers] = useState(location.state.data.users || []);
+ const [users, setUsers] = useState([]);
 
   // Filter users based on search
   const filteredUsers = users.filter(
@@ -88,6 +89,24 @@ const UserManagement = () => {
          console.log(err);
       }
   }
+  useEffect(() => {
+    console.log("inside effectt")
+    const userActivity=async()=>{
+        try{
+               const res=await axios.get(`${api}/findUsers`);
+               if(res)
+               {  
+                  console.log(res.data.users);
+                  setUsers(res.data.users);
+               }
+        }
+        catch(err)
+        {
+           console.log(err)
+        }
+    }
+    userActivity();
+  }, []);
 
   return (
     <div className="p-6">
@@ -141,56 +160,83 @@ const UserManagement = () => {
           <Users className="w-5 h-5 mr-2 text-purple-600" /> All Users ({filteredUsers.length})
         </h2>
 
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="border-b text-gray-600">
-              <th className="p-3">Name</th>
-              <th className="p-3">Email</th>
-              <th className="p-3">Role</th>
-              {/* <th className="p-3">Status</th> */}
-              <th className="p-3">Created At</th>
-              <th className="p-3 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {currentUsers.map((user, idx) => (
-              <tr key={idx} className="border-b hover:bg-gray-50">
-                <td className="p-3 font-semibold">{user.fullname}</td>
-                <td className="p-3 text-gray-600">{user.username}</td>
-                <td className="p-3">
-                  <span className={`px-3 py-1 rounded-full text-sm ${user.role==="Admin"?"bg-red-500 text-white": user.role === "Team Lead" ? "bg-purple-500 text-white": user.role==="QA"?"bg-green-500 text-white"  : "bg-gray-200 text-gray-700"}`}>
-                    {user.role==="Member"?"Annotator":user.role}
-                  </span>
-                </td>
-                <td className="p-3 text-gray-600"> {new Date(user.createdAt).toLocaleDateString("en-GB")}</td>
-                <td className="p-3 text-right relative">
-                  <button className="p-2 hover:bg-gray-200 rounded-full">
-                    <MoreVertical
-                      className="w-5 h-5 text-gray-600"
-                      onClick={() => toggleMenu(idx)}
-                    />
-                  </button>
-                  {open === idx && (
-                    <div className="absolute right-5 mt-2 w-40 bg-white border rounded-md shadow-lg z-10" onMouseLeave={()=>setOpen(false)}>
-                      <button
-                        className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                        onClick={()=>handleEdit(user.username,user.role,user.fullname)}
-                      >
-                        <Edit className="w-4 h-4 mr-2"/> Edit User
-                      </button>
-                      <button
-                        className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
-                        onClick={() =>{setdeleteUser(true);setOpen(false);setUsername(user.username)}}
-                      >
-                        <Trash className="w-4 h-4 mr-2" /> Delete User
-                      </button>
-                    </div>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+       {users.length === 0 ? (
+  <div className="flex justify-center items-center w-full py-6">
+    <Loader2 className="animate-spin mr-2 text-gray-500 w-5 h-5" />
+    <span className="text-gray-600 text-sm">Fetching Users...</span>
+  </div>
+) : (
+  <table className="w-full text-left border-collapse">
+    <thead>
+      <tr className="border-b text-gray-600">
+        <th className="p-3">Name</th>
+        <th className="p-3">Email</th>
+        <th className="p-3">Role</th>
+        <th className="p-3">Created At</th>
+        <th className="p-3 text-right">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {currentUsers.map((user, idx) => (
+        <tr key={idx} className="border-b hover:bg-gray-50">
+          <td className="p-3 font-semibold">{user.fullname}</td>
+          <td className="p-3 text-gray-600">{user.username}</td>
+          <td className="p-3">
+            <span
+              className={`px-3 py-1 rounded-full text-sm ${
+                user.role === "Admin"
+                  ? "bg-red-500 text-white"
+                  : user.role === "Team Lead"
+                  ? "bg-purple-500 text-white"
+                  : user.role === "QA"
+                  ? "bg-green-500 text-white"
+                  : "bg-gray-200 text-gray-700"
+              }`}
+            >
+              {user.role === "Member" ? "Annotator" : user.role}
+            </span>
+          </td>
+          <td className="p-3 text-gray-600">
+            {new Date(user.createdAt).toLocaleDateString("en-GB")}
+          </td>
+          <td className="p-3 text-right relative">
+            <button className="p-2 hover:bg-gray-200 rounded-full">
+              <MoreVertical
+                className="w-5 h-5 text-gray-600"
+                onClick={() => toggleMenu(idx)}
+              />
+            </button>
+            {open === idx && (
+              <div
+                className="absolute right-5 mt-2 w-40 bg-white border rounded-md shadow-lg z-10"
+                onMouseLeave={() => setOpen(false)}
+              >
+                <button
+                  className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                  onClick={() =>
+                    handleEdit(user.username, user.role, user.fullname)
+                  }
+                >
+                  <Edit className="w-4 h-4 mr-2" /> Edit User
+                </button>
+                <button
+                  className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
+                  onClick={() => {
+                    setdeleteUser(true);
+                    setOpen(false);
+                    setUsername(user.username);
+                  }}
+                >
+                  <Trash className="w-4 h-4 mr-2" /> Delete User
+                </button>
+              </div>
+            )}
+          </td>
+        </tr>
+      ))}
+    </tbody>
+  </table>
+)}
 
         {/* Pagination */}
     {/* Pagination */}

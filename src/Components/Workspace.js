@@ -27,7 +27,7 @@ export default function Workspace() {
     const [assignee, setAssignee] = useState("");
     const [fromHour, setFromHour] = useState("");
     const [toHour, setToHour] = useState("");
-    const counterRef = useRef(100);
+    const counterRef = useRef(parseInt(localStorage.getItem("annotatorCounter") || "100"));
     const[check,setCheck]=useState(false);
     const[id,setId]=useState('');
     const [activeButton, setActiveButton] = useState('');
@@ -161,13 +161,14 @@ export default function Workspace() {
   }
 function generateAnnotatorId() {
   counterRef.current++;
+    localStorage.setItem("annotatorCounter", counterRef.current);
   return `A-${counterRef.current}`;
 }
   const handleSubmit=async()=>{
 
        try{  
              const task={
-                id:generateAnnotatorId(),
+                 id:generateAnnotatorId(),
                  city:city,
                  audioDate:date,
                  station:station,
@@ -450,13 +451,13 @@ function generateAnnotatorId() {
   </div>
 </div>}
         
-      {recordings && load &&(
+      {/* {recordings && load &&(
       <AudioWaveform
         audio={audio} 
         start={recordings.startTime} 
         // end={recordings.endTime} 
       />
-    )}
+    )} */}
 
    {recordings && load && (
   <>
@@ -540,7 +541,7 @@ function generateAnnotatorId() {
                     </label>
                     <input
                       type="number"
-                      min="0"
+                      min={parseInt(recordings.startTime?.split(":")[0] || "0", 10)} 
                       max="23"
                       value={fromHour}
                       onChange={(e) => setFromHour(e.target.value)}
@@ -553,8 +554,8 @@ function generateAnnotatorId() {
                     </label>
                     <input
                       type="number"
-                       max="23"
-                       min="0"
+                       max="24"
+                       min={parseInt(recordings.startTime?.split(":")[0] || "0", 10)+1}
                       value={toHour}
                       onChange={(e) => setToHour(e.target.value)}
                       className="w-full border rounded-lg p-2"
